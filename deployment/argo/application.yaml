@@ -1,0 +1,23 @@
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: k8s-argo-application
+#   namespace: argocd
+# spec:
+#   project: default
+  
+#   destination:
+#     namespace: ecomm
+#     server: 'https://kubernetes.default.svc'
+  
+#   source:
+#     path: k8s
+#     repoURL: 'https://github.com/agubran/Deploy_Microservice_with_AKS.git'
+#     targetRevision: master
+  
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+#     syncOptions:
+#       - CreateNamespace=true

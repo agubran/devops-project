@@ -1,0 +1,48 @@
+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
+argocd-pilot :  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  and user name admin, pwd : cfnSPpxXCm0nAn6H
+#ArgoCD : 
+    #Setup : https://argo-cd.readthedocs.io/en/stable/getting_started/
+        1-Execute this command 
+            kubectl create namespace argocd
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/core-install.yaml
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+        2-Forward to this port : 
+            kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+        3-Get password use this command : 
+            kubectl get secret argocd-initial-admin-secret -n argocd -o yaml
+
+        4-Decode that password :
+            echo [Password] | base64 --decode
+
+        5-use it to login on https://localhost:8080
+            username : admin
+            password : bLc7bbj8bqwFc4GA
+
+    #Connect to my repo use this password [token from my github.com -> User Setting - Developer Mode - Auth]
+        repoURL : 
+        password :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
+
+
+#Install Vault 
+    Url: https://www.vaultproject.io/docs/platform/k8s/helm/run
+    Initial root token : hvs.3zQ2qzyl7z6J66nXdo6UZKJa
+    Key 1              : YgxdSJ+DjWLe7Ak4qhDzdfd/Gu69teADmWfghG18w+0=
+
+#JsonFile: 
+    {
+        "keys": [
+            "620c5d489f838d62deec0938aa10f375f77f1aeebdb5e0039967e0846d7cc3ed"
+        ],
+        "keys_base64": [
+            "YgxdSJ+DjWLe7Ak4qhDzdfd/Gu69teADmWfghG18w+0="
+        ],
+        "root_token": "hvs.3zQ2qzyl7z6J66nXdo6UZKJa"
+    }
+
+    kubectl exec -ti vault-0 -- vault operator init
+    Unseal Key 1: YgxdSJ+DjWLe7Ak4qhDzdfd/Gu69teADmWfghG18w+0=
+    Initial Root Token: hvs.3zQ2qzyl7z6J66nXdo6UZKJa
+
+
+======================================================
