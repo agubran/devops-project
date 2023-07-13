@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "mongodb.fullname" . }}-configmap
-data:
-  connection_string: mongodb://username:password@mongo-service:27017

@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: mongodb
+  repository: mongo
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
@@ -40,7 +40,7 @@ securityContext: {}
 service:
   type: NodePort #ClusterIP
   port: 27017
-  nodePort: 27017
+  nodePort: 31045
   
 ingress:
   enabled: false

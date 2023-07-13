@@ -5,10 +5,10 @@
 replicaCount: 1
 environment: Development #Stage Production
 image:
-  repository: mehmetozkaya/shoppingweb
+  repository: abumoaad/web
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: "v1"
   containerPort: 80
   
 imagePullSecrets: []
@@ -82,3 +82,11 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+env:
+  values:
+  - name: ASPNETCORE_ENVIRONMENT
+    value: Development
+  configmap: 
+    - name: ShoppingAPIUrl
+      key: ShoppingAPIUrl

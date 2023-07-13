@@ -1,3 +1,5 @@
+{{- $name := include "api.fullname" . -}}
+{{- $cfgname  := "cfg-api" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,25 +36,35 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: ASPNETCORE_ENVIRONMENT
-              value: {{ .Values.environment }}
-            - name: DatabaseSettings__ConnectionString
+          #env.vlues#
+          {{- if .Values.env.values -}}
+          {{- range .Values.env.values }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+          {{- end -}}
+          {{- end -}}
+          #env.configMap#
+          {{- if .Values.env.configmap -}}
+          {{- range .Values.env.configmap }}
+            - name: {{ .name }}
               valueFrom:
-                  configMapKeyRef:
-                    name: {{ include "api.fullname" . }}-configmap
-                    key: connection_string
+                configMapKeyRef:
+                  name: {{ $cfgname }}
+                  key: {{ .key }}
+          {{- end -}}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.image.containerPort }}
               protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
+          # readinessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

@@ -1,6 +1,13 @@
+{{- $name := include "api.fullname" . -}}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "api.fullname" . }}-configmap
+  name:  "cfg-api"
+  labels:
+    app: {{ template "api.name" . }}
+    chart: {{ template "api.chart" .}}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 data:
   connection_string: mongodb://username:password@mongo-service:27017

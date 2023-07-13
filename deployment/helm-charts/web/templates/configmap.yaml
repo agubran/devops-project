@@ -1,6 +1,13 @@
+{{- $name := include "web.fullname" . -}}
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "web.fullname" . }}-configmap
+  name: "cfg-web"
+  labels:
+    app: {{ template "web.name" . }}
+    chart: {{ template "web.chart" .}}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
 data:
-  shoppingapi_url: http://shoppingapi-service:8000
+  ShoppingAPIUrl: http://api:31000/

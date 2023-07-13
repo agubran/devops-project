@@ -1,0 +1,18 @@
+releases:
+  - name: mongodb
+    namespace: devops-project
+    chart: /mongodb
+    values:
+      - /mongodb/values.yaml
+
+  - name: api
+    namespace: devops-project
+    chart: /api
+    values:
+      - /api/values.yaml
+
+  - name: web
+    namespace: devops-project
+    chart: /web
+    values:
+      - /web/values.yaml
