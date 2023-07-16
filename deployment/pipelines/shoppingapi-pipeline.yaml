@@ -33,7 +33,7 @@ stages:
       displayName: Build and push an image to container registry
       inputs:
         containerRegistry: 'docker-service-connection'
-        repository: 'abumoaad'
+        repository: 'abumoaad/shoppingapi'
         command: 'buildAndPush'
         Dockerfile: '**/Dockerfile'
         buildContext: '$(Build.SourcesDirectory)/Shopping'
