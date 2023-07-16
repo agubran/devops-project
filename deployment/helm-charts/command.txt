@@ -47,6 +47,9 @@ k8s :
 	  kubectl apply -f deployment/k8s
 	  kubectl delete -f deployment/k8s
 
+AKS :
+  
+
 HelmChart :
     Command : 
 	  helm --help 
@@ -73,8 +76,13 @@ HelmChart :
 	  helm upgrade --install api ./api/   
 	  helm upgrade --install web ./web/   
 
-
 HelmFile:
     helmfile sync
     helmfile apply
+
 Argo :
+
+AzDevOps Pipeline:
+
+Vault :
+

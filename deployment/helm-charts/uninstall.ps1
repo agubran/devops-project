@@ -1,19 +1,18 @@
 Param(
-    [parameter(Mandatory=$false)][string]$appName="devops-project",
+    [parameter(Mandatory=$false)][string]$appName="",
     [parameter(Mandatory=$false)][bool]$clean=$true
     )
 
-function Install-Chart  {
+function Uninstall-Chart  {
     Param([string]$chart, [string]$initialOptions)
     $options=$initialOptions
-
-    $command = "helm install $appName-$chart $chart $options"
+    $command = "helm uninstall $chart ./$chart/ $options"
     Write-Host "Helm Command: $command" -ForegroundColor Gray
     Invoke-Expression $command
 }
 
 
-Write-Host "Begin installation using Helm" -ForegroundColor Green
+Write-Host "Begin uninstallation using Helm" -ForegroundColor Green
 
 if ($clean) {    
     $listOfReleases=$(helm ls --filter $appName -q)    
@@ -31,9 +30,9 @@ if ($clean) {
 $charts =  ("mongodb", "api", "web")
 
 foreach ($chart in $charts) {
-    Write-Host "Installing: $chart" -ForegroundColor Green
-    Install-Chart $chart
+    Write-Host "Uninstall: $chart" -ForegroundColor Green
+    Uninstall-Chart $chart
 }
 
 
-Write-Host "helm charts installed." -ForegroundColor Green
+Write-Host "helm charts Uninstall." -ForegroundColor Green
