@@ -32,12 +32,11 @@ stages:
     - task: Docker@2
       displayName: Build and push an image to container registry
       inputs:
-        containerRegistry: '$(dockerRegistryServiceConnection)'
+        containerRegistry: 'docker-service-connection'
         repository: 'abumoaad'
         command: 'buildAndPush'
         Dockerfile: '**/Dockerfile'
         buildContext: '$(Build.SourcesDirectory)/Shopping'
-        tags: '$(Build.BuildId)'
           
     # - upload: aks
     #   artifact: aks
