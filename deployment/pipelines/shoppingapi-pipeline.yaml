@@ -11,8 +11,8 @@ trigger:
     #   - ../Shopping/Shopping.API/*
     #   - ../deployment/aks/shoppingapi.yaml
 
-resources:
-- repo: self
+#resources:
+#- repo: self
 
 variables:
   # Agent VM image name
