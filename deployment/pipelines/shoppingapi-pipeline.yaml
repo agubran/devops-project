@@ -8,8 +8,8 @@ variables:
   vmImageName: 'ubuntu-latest'
   
 stages:
-- stage: Build and Push to docker hub
-  displayName: Build stage
+- stage: Build
+  displayName: Build and Push to docker hub stage
   jobs:  
   
   - job: Build
