@@ -1,5 +1,3 @@
-{{- $name := include "api.fullname" . -}}
-{{- $cfgname  := "cfg-api" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,38 +33,30 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+          - name: vol-api
+            mountPath: "/app/appsettings.json"
+            subPath: appsettings.json
           env:
-          #env.vlues#
-          {{- if .Values.env.values -}}
-          {{- range .Values.env.values }}
-            - name: {{ .name }}
-              value: {{ .value | quote }}
-          {{- end -}}
-          {{- end -}}
-          #env.configMap#
-          {{- if .Values.env.configmap -}}
-          {{- range .Values.env.configmap }}
-            - name: {{ .name }}
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ $cfgname }}
-                  key: {{ .key }}
-          {{- end -}}
-          {{- end }}
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            # - name: DatabaseSettings__ConnectionString
+            #   valueFrom:
+            #     configMapKeyRef:
+            #       name:  cfg-api
+            #       key: connection_string
+          
           ports:
             - name: http
               containerPort: {{ .Values.image.containerPort }}
               protocol: TCP
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: http
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      
+      volumes:
+      - name: vol-api
+        configMap:
+          name: cfg-api
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

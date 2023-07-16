@@ -35,7 +35,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.image.containerPort }}
+              containerPort: 27017
               protocol: TCP
           env:
             - name: MONGO_INITDB_ROOT_USERNAME

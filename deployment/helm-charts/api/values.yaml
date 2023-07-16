@@ -13,7 +13,7 @@ image:
   
 imagePullSecrets: []
 nameOverride: ""
-fullnameOverride: ""
+fullnameOverride: "api"
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -86,9 +86,6 @@ affinity: {}
 
 # env defines the environment variables that will be declared in the pod
 env:
-  values:
-  - name: ASPNETCORE_ENVIRONMENT
-    value: Development
-  configmap: 
-    - name: connection_string
-      key: connection_string
+  config:
+    ConnectionString: mongodb://username:password@mongodb:27017
+  

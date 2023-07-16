@@ -8,7 +8,9 @@ Docker  :
 		docker rmi  [ImageID] -f 
 		docker tag  [ImageID] [NewTag]:[Version]
 		docker scan [ImageName]
+        docker exec -it ContainerID /bin/bash
 
+		
     #Example Web  -> http://localhost:5000
 			docker build -f "Path/Dockerfile" -t ImageName:latest .
 			docker run -

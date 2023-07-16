@@ -1,5 +1,3 @@
-{{- $name := include "api.fullname" . -}}
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10,4 +8,19 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-  connection_string: mongodb://username:password@mongo-service:27017
+  appsettings.json: |-
+    {
+      "DatabaseSettings": {
+        "ConnectionString": {{ required "A valid .Values.env.config.ConnectionString entry required!" .Values.env.config.ConnectionString | quote }},
+        "DatabaseName": "ProductDb",
+        "CollectionName": "Products"
+      },
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Warning",
+          "Microsoft.Hosting.Lifetime": "Information"
+        }
+      },
+      "AllowedHosts": "*"
+    }
