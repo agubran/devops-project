@@ -6,9 +6,26 @@ trigger: none
 
 variables:
   vmImageName: 'ubuntu-latest'
-  
+
 stages:
+- stage: SAST
+  displayName: SAST
+  jobs:
+    - job: SAST
+      displayName: Run whiteSource and SonarQube
+      pool:
+        vmImage: $(vmImageName)
+      steps:
+      - task: SonarQubePrepare@5
+        inputs:
+          SonarQube: 'Sonar Cloud'
+          scannerMode: 'MSBuild'
+          projectKey: 'devops-project'
+          projectName: 'DevOps-Project'
+      
+
 - stage: Build
+  dependsOn: SAST
   displayName: Build and Push to docker hub stage
   jobs:  
   
@@ -30,6 +47,7 @@ stages:
 #reflect that change using argo-cd to k8s
 #
 - stage: PR
+  dependsOn: Build
   displayName: Pr change to values mainfest on helm-chart
   jobs:  
   
@@ -37,12 +55,3 @@ stages:
     displayName: Build
     pool:
       vmImage: $(vmImageName)
-    steps:
-    - task: Docker@2
-      displayName: Build and push an image to container registry
-      inputs:
-        containerRegistry: 'docker-service-connection'
-        repository: 'abumoaad/shoppingapi'
-        command: 'buildAndPush'
-        Dockerfile: '**/Dockerfile'
-        buildContext: '$(Build.SourcesDirectory)/Shopping'
