@@ -1,0 +1,92 @@
+parameters:
+- name: DepCheckProjectName
+  type: string 
+- name: nugetConfigPath
+  type: string 
+- name: SonarQubeServiceConnection
+  type: string 
+- name: SonarQubeProjectKey
+  type: string 
+- name: SonarQubeProjectName
+  type: string 
+
+steps:
+- checkout: App_Repo
+  clean: true
+
+# Running Dependency Check
+# - task: dependency-check-build-task@6
+#   displayName: Dependency Check
+#   inputs:
+#     projectName: ${{ parameters.DepCheckProjectName }}
+#     scanPath: '**/*.csproj '
+#     format: HTML,JSON,JUNIT
+#     warnOnCVSSViolation: true
+#     enableExperimental: true
+#     enableRetired: true
+#     enableVerbose: true
+
+# # Publish Dependency Check Result
+# - task: PublishTestResults@2
+#   displayName: 'Publish Dependency Check Result'
+#   inputs:
+#     testResultsFiles: e:\Agent1\_work\442\TestResults\dependency-check\*junit.xml
+#     testRunTitle: Dependency Check
+
+# WhiteSource Bolt
+- task: whitesource.whiteSource-bolt-v2.bolt.wss.WhiteSource@21
+  displayName: WhiteSource Bolt
+
+# Restore
+- task: DotNetCoreCLI@2
+  displayName: Restore
+  inputs:
+    command: restore
+    projects: >-
+      **/*.csproj
+
+      !**/*Mobile*.csproj
+    selectOrConfig: config
+    feedRestore: e6c29378-7ea0-4eb5-be0a-bae0a9f5a4a7
+    nugetConfigPath:  ${{ parameters.nugetConfigPath }}
+
+# Prepare analysis on SonarQube
+- task: SonarQubePrepare@4
+  displayName: Prepare analysis on SonarQube
+  inputs:
+    SonarQube: ${{ parameters.SonarQubeServiceConnection }}
+    projectKey:  ${{ parameters.SonarQubeProjectKey }}
+    projectName:  ${{ parameters.SonarQubeProjectName }}
+    extraProperties: |
+      sonar.branch.name= 'develop'
+
+# Build 
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    projects: | 
+      src/Thiqah.Rega.Web.Domain/*.csproj
+      src/Thiqah.Rega.ContractInfo/*.csproj
+      src/Thiqah.Rega.Hangfire/*.csproj
+      src/Thiqah.Rega.Nafath/*.csproj
+      src/Thiqah.Rega.NotificationGateway/*.csproj
+      src/Thiqah.Rega.PartyInfo/*.csproj
+      src/Thiqah.Rega.Payment/*.csproj
+      src/Thiqah.Rega.Wathq/*.csproj
+      src/Thiqah.Rega.Web.Application/*.csproj
+      src/Thiqah.Rega.Web.Application.Contracts/*.csproj
+      src/Thiqah.Rega.Web.Domain.Shared/*.csproj
+      src/Thiqah.Rega.Web.EntityFrameworkCore/*.csproj
+      src/Thiqah.Rega.Web.HttpApi/*.csproj
+      src/Thiqah.Rega.Web.HttpApi.Client/*.csproj
+      src/Thiqah.Rega.Web.HttpApi.Host/*.csproj
+    # arguments: --configuration $(BuildConfiguration) --no-restore
+    configuration: '$(BuildConfiguration)'
+
+# Run Code Analysis
+- task: SonarQubeAnalyze@4
+  displayName: Run Code Analysis
+
+# Publish Quality Gate Result
+- task: SonarQubePublish@4
+  displayName: Publish Quality Gate Result

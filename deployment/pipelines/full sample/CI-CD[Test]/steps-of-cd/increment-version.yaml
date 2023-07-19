@@ -1,0 +1,37 @@
+parameters:
+  - name: DEPLOY_BRANCH_NAME
+    default: $(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)-$(Build.BuildId)
+    type: string
+  - name: VersionFile
+    type: string
+  - name: MANIFEST_DIR # The Path to the Service Manifest in the GitOps Repo
+    type: string
+  - name: Component_Version # The Path to the Service Manifest in the GitOps Repo
+    default: V$(COMPONENT_MAJOR_VERSION).$(COMPONENT_MINOR_VERSION).$(COMPONENT_PATCH_VERSION)
+    type: string
+
+steps:
+  - checkout: App_Repo
+  - checkout: Config #name of the config repo
+    persistCredentials: true
+  - script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+    displayName: Configure Git
+    env:
+      PR_USER_NAME: "CI/CD"
+      PR_USER_EMAIL: "CICD@example.com"
+    workingDirectory: ${{ parameters.MANIFEST_DIR }}
+
+  - script: |
+
+      pwd
+      echo =================================
+      echo V$(COMPONENT_MAJOR_VERSION).$(COMPONENT_MINOR_VERSION).$(COMPONENT_PATCH_VERSION)
+      echo =================================
+      # pwd
+      git checkout ${{ parameters.DEPLOY_BRANCH_NAME }}
+      sed -i 's/version:.*/version:\ "V$(COMPONENT_MAJOR_VERSION).$(COMPONENT_MINOR_VERSION).$(COMPONENT_PATCH_VERSION)"/g' ${{ parameters.VersionFile }}
+      git add .
+      git commit -m "Increment to version $(Build.BuildNumber)"
+      git push --set-upstream origin ${{ parameters.DEPLOY_BRANCH_NAME }}
+    displayName: update manifest version
+    workingDirectory: ${{ parameters.MANIFEST_DIR }}

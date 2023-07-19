@@ -1,0 +1,362 @@
+steps:
+- checkout: Performance  #name of the performance repo
+  persistCredentials: true
+
+# Run Load Test 
+- task: AlexandreGattiker.jmeter-tasks.custom-taurus-runner-task.TaurusRunner@0
+
+  displayName: 'Run Load Test'
+
+  inputs:
+
+    taurusConfig: |
+     execution:
+     - concurrency: 30 
+       ramp-up: 15s
+       hold-for: 10m
+       scenario: LoadTest
+     
+     reporting:
+     - module: passfail
+       criteria:
+         - avg-rt of GET_home/running>3000ms, continue as failed
+         - avg-rt of GET_assets/appconfig>3000ms, continue as failed
+         - avg-rt of GET_config/GetAll>3000ms, continue as failed
+         - avg-rt of GET_CurrentLoginInformations>3000ms, continue as failed
+         - avg-rt of GET_AllPublicRunningAuctionsAsync>7000ms, continue as failed
+         - avg-rt of GET_Auctions/GetTenantsAsync>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetAssetTypesAsync>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetCitiesAsync>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/upcoming>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/Running>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/endedSetillment>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Running>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsRunnning_allCities>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished_MOJ>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Running_MOJ>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished_MOJ_2>3000ms, continue as failed
+         - avg-rt of GET_GetAllAuctionsAsync>3000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctions>3000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_AuctionDetailsForPublic>3000ms, continue as failed
+         - avg-rt of GET_ParticipatedBidders>3000ms, continue as failed
+         - avg-rt of GET_BiddingCount>3000ms, continue as failed
+         - avg-rt of GET_RealestateAssetDetails>3000ms, continue as failed
+         - avg-rt of GET_TenantsAsync>3000ms, continue as failed
+         - avg-rt of GET_AssetTypesAsync>3000ms, continue as failed
+         - avg-rt of GET_BiddingAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_FixedDeductibleValueFromBidder>3000ms, continue as failed
+         - avg-rt of POST_ConvertNumberToText>3000ms, continue as failed
+         - avg-rt of GET_CurrentTenantName>3000ms, continue as failed
+         - avg-rt of GET_VateRateFromAssetType>3000ms, continue as failed
+         - avg-rt of GET_SeekingRateBidderFromAssetType>3000ms, continue as failed
+         - avg-rt of GET_getauctionTimeLifted>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Upcomming>3000ms, continue as failed
+         - avg-rt of GET_MyFavouriteAsync>3000ms, continue as failed
+         - avg-rt of POST_auth/AuthenticatePublicFrontEnd>5000ms, continue as failed
+         - avg-rt of GET_AllBankForLookup>3000ms, continue as failed
+         - avg-rt of GET_Bill/GetMyBills>3000ms, continue as failed
+         - avg-rt of GET_Bill/GetMyBills2>3000ms, continue as failed
+         - avg-rt of GET_Wallets/GetMyWallet>3000ms, continue as failed
+         - avg-rt of POST_WalletOrders/CreateOrEdit>5000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctions>3000ms, continue as failed
+         - avg-rt of POST_CheckBidderAuctionStatus>5000ms, continue as failed
+         - avg-rt of POST_EnterMazadForMazadUserAsync>5000ms, continue as failed
+         - avg-rt of GET_BiddingAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetAuctionPrices>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetLast5Pidding>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetParticipatedBidders>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetBiddingCount>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetAuctionBidderRefrenceNumber>3000ms, continue as failed
+         - avg-rt of POST_ConvertNumberToText>3000ms, continue as failed
+         - avg-rt of GET_AuctionDetailsForPublic>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetRealEstateDetailsById>3000ms, continue as failed
+         - avg-rt of POST_Biddings/AddPaidAsync>5000ms, continue as failed
+         - rc5??>2%, continue as failed
+         - rc4??>2%, continue as failed
+         - fail of PostToken>3%, continue as failed
+         - fail of GET_home/running>3%, continue as failed
+         - fail of GET_assets/appconfig>3%, continue as failed
+         - fail of GET_CurrentLoginInformations>3%, continue as failed
+         - fail of GET_AllPublicRunningAuctionsAsync>3%, continue as failed
+         - fail of GET_Auctions/GetTenantsAsync>3%, continue as failed
+         - fail of GET_Auctions/GetAssetTypesAsync>3%, continue as failed
+         - fail of GET_Auctions/GetCitiesAsync>3%, continue as failed
+         - fail of GET_AuctionsAsync/upcoming>3%, continue as failed
+         - fail of GET_AuctionsAsync/Running>3%, continue as failed
+         - fail of GET_AuctionsAsync/endedSetillment>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Upcomming>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Running>3%, continue as failed
+         - fail of GET_GetAuctionsRunnning_allCities>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished_MOJ>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Running_MOJ>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished_MOJ_2>3%, continue as failed
+         - fail of GET_GetAllAuctionsAsync>3%, continue as failed
+         - fail of GET_PublicRunningAuctions>3%, continue as failed
+         - fail of GET_PublicRunningAuctionDetails>3%, continue as failed
+         - fail of GET_AuctionDetailsForPublic>3%, continue as failed
+         - fail of GET_ParticipatedBidders>3%, continue as failed
+         - fail of GET_BiddingCount>3%, continue as failed
+         - fail of GET_RealestateAssetDetails>3%, continue as failed
+         - fail of GET_TenantsAsync>3%, continue as failed
+         - fail of GET_AssetTypesAsync>3%, continue as failed
+         - fail of GET_BiddingAuctionDetails>3%, continue as failed
+         - fail of GET_FixedDeductibleValueFromBidder>3%, continue as failed
+         - fail of POST_ConvertNumberToText>3%, continue as failed
+         - fail of GET_CurrentTenantName>3%, continue as failed
+         - fail of GET_VateRateFromAssetType>3%, continue as failed
+         - fail of GET_SeekingRateBidderFromAssetType>3%, continue as failed
+         - fail of GET_getauctionTimeLifted>3%, continue as failed
+         - fail of GET_MyFavouriteAsync>3%, continue as failed
+         - fail of POST_auth/AuthenticatePublicFrontEnd>3%, continue as failed
+         - fail of GET_AllBankForLookup>3%, continue as failed
+         - fail of GET_Bill/GetMyBills>3%, continue as failed
+         - fail of GET_Bill/GetMyBills2>3%, continue as failed
+         - fail of GET_Wallets/GetMyWallet>3%, continue as failed
+         - fail of POST_WalletOrders/CreateOrEdit>3%, continue as failed 
+         - fail of GET_PublicRunningAuctions>3%, continue as failed
+         - fail of POST_CheckBidderAuctionStatus>3%, continue as failed
+         - fail of POST_EnterMazadForMazadUserAsync>3%, continue as failed
+         - fail of GET_BiddingAuctionDetails>3%, continue as failed
+         - fail of GET_Biddings/GetAuctionPrices>3%, continue as failed
+         - fail of GET_Biddings/GetLast5Pidding>3%, continue as failed
+         - fail of GET_Biddings/GetParticipatedBidders>3%, continue as failed
+         - fail of GET_Biddings/GetBiddingCount>3%, continue as failed
+         - fail of GET_Biddings/GetAuctionBidderRefrenceNumber>3%, continue as failed
+         - fail of POST_ConvertNumberToText>3%, continue as failed
+         - fail of GET_AuctionDetailsForPublic>3%, continue as failed
+         - fail of GET_Auctions/GetRealEstateDetailsById>3%, continue as failed
+         - fail of POST_Biddings/AddPaidAsync>3%, continue as failed
+     
+     
+         
+     - module: junit-xml
+       data-source: pass-fail
+       filename: $(fileNamePathOfProject)
+     
+     scenarios:
+       LoadTest:
+         script: $(ScenariosScriptPath)
+         data-sources:  # these are data-sources options for Jmeter. See more info below.
+         - path: $(System.ArtifactsPath)/Bidders.txt  # this is a full form
+           delimiter: ';'
+           quoted: false
+           loop: true
+           variable-names: username
+           random-order: false
+     
+     modules:
+       jmeter:
+        gui: false
+        path: /home/qcadmin/apache-jmeter-5.3/bin/jmeter.sh
+        
+     settings:
+        executor: jmeter
+
+    jmeterHome: '$(JMeter Home)'
+
+    jmeterPath: '$(JMeter Path)'
+
+    jmeterVersion: '$(JMeter Version)'
+  condition: succeededOrFailed()
+
+# Publish Baseline Test Results
+
+- task: PublishTestResults@2
+  displayName: 'Publish Baseline Test Results'
+  inputs:
+    testResultsFiles: 'Result_Baseline_VM.xml'
+    searchFolder: '$(searchFolder)'
+    mergeTestResults: true
+    testRunTitle: 'Baseline Result'
+  condition: always()
+
+# Upload Release Artifact HTML Report
+- task: benjhuser.ReleaseArtifacts.PublishReleaseArtifact.PublishReleaseArtifact@1
+  displayName: 'Upload Release Artifact HTML Report'
+  inputs:
+    artifactPath: '$(artifactPath)'
+  condition: always()
+
+# Run Load Test
+
+- task: AlexandreGattiker.jmeter-tasks.custom-taurus-runner-task.TaurusRunner@0
+
+  displayName: 'Run Load Test'
+
+  inputs:
+
+    taurusConfig: |
+     execution:
+     - concurrency: 30 
+       ramp-up: 15s
+       hold-for: 10m
+       scenario: LoadTest
+     
+     reporting:
+     - module: passfail
+       criteria:
+         - avg-rt of GET_home/running>3000ms, continue as failed
+         - avg-rt of GET_assets/appconfig>3000ms, continue as failed
+         - avg-rt of GET_config/GetAll>3000ms, continue as failed
+         - avg-rt of GET_CurrentLoginInformations>3000ms, continue as failed
+         - avg-rt of GET_AllPublicRunningAuctionsAsync>7000ms, continue as failed
+         - avg-rt of GET_Auctions/GetTenantsAsync>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetAssetTypesAsync>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetCitiesAsync>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/upcoming>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/Running>3000ms, continue as failed
+         - avg-rt of GET_AuctionsAsync/endedSetillment>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Running>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsRunnning_allCities>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished_MOJ>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Running_MOJ>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Finished_MOJ_2>3000ms, continue as failed
+         - avg-rt of GET_GetAllAuctionsAsync>3000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctions>3000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_AuctionDetailsForPublic>3000ms, continue as failed
+         - avg-rt of GET_ParticipatedBidders>3000ms, continue as failed
+         - avg-rt of GET_BiddingCount>3000ms, continue as failed
+         - avg-rt of GET_RealestateAssetDetails>3000ms, continue as failed
+         - avg-rt of GET_TenantsAsync>3000ms, continue as failed
+         - avg-rt of GET_AssetTypesAsync>3000ms, continue as failed
+         - avg-rt of GET_BiddingAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_FixedDeductibleValueFromBidder>3000ms, continue as failed
+         - avg-rt of POST_ConvertNumberToText>3000ms, continue as failed
+         - avg-rt of GET_CurrentTenantName>3000ms, continue as failed
+         - avg-rt of GET_VateRateFromAssetType>3000ms, continue as failed
+         - avg-rt of GET_SeekingRateBidderFromAssetType>3000ms, continue as failed
+         - avg-rt of GET_getauctionTimeLifted>3000ms, continue as failed
+         - avg-rt of GET_GetAuctionsAsync_Upcomming>3000ms, continue as failed
+         - avg-rt of GET_MyFavouriteAsync>3000ms, continue as failed
+         - avg-rt of POST_auth/AuthenticatePublicFrontEnd>5000ms, continue as failed
+         - avg-rt of GET_AllBankForLookup>3000ms, continue as failed
+         - avg-rt of GET_Bill/GetMyBills>3000ms, continue as failed
+         - avg-rt of GET_Bill/GetMyBills2>3000ms, continue as failed
+         - avg-rt of GET_Wallets/GetMyWallet>3000ms, continue as failed
+         - avg-rt of POST_WalletOrders/CreateOrEdit>5000ms, continue as failed
+         - avg-rt of GET_PublicRunningAuctions>3000ms, continue as failed
+         - avg-rt of POST_CheckBidderAuctionStatus>5000ms, continue as failed
+         - avg-rt of POST_EnterMazadForMazadUserAsync>5000ms, continue as failed
+         - avg-rt of GET_BiddingAuctionDetails>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetAuctionPrices>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetLast5Pidding>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetParticipatedBidders>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetBiddingCount>3000ms, continue as failed
+         - avg-rt of GET_Biddings/GetAuctionBidderRefrenceNumber>3000ms, continue as failed
+         - avg-rt of POST_ConvertNumberToText>3000ms, continue as failed
+         - avg-rt of GET_AuctionDetailsForPublic>3000ms, continue as failed
+         - avg-rt of GET_Auctions/GetRealEstateDetailsById>3000ms, continue as failed
+         - avg-rt of POST_Biddings/AddPaidAsync>5000ms, continue as failed
+         - rc5??>2%, continue as failed
+         - rc4??>2%, continue as failed
+         - fail of PostToken>3%, continue as failed
+         - fail of GET_home/running>3%, continue as failed
+         - fail of GET_assets/appconfig>3%, continue as failed
+         - fail of GET_CurrentLoginInformations>3%, continue as failed
+         - fail of GET_AllPublicRunningAuctionsAsync>3%, continue as failed
+         - fail of GET_Auctions/GetTenantsAsync>3%, continue as failed
+         - fail of GET_Auctions/GetAssetTypesAsync>3%, continue as failed
+         - fail of GET_Auctions/GetCitiesAsync>3%, continue as failed
+         - fail of GET_AuctionsAsync/upcoming>3%, continue as failed
+         - fail of GET_AuctionsAsync/Running>3%, continue as failed
+         - fail of GET_AuctionsAsync/endedSetillment>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Upcomming>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Running>3%, continue as failed
+         - fail of GET_GetAuctionsRunnning_allCities>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished_MOJ>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Running_MOJ>3%, continue as failed
+         - fail of GET_GetAuctionsAsync_Finished_MOJ_2>3%, continue as failed
+         - fail of GET_GetAllAuctionsAsync>3%, continue as failed
+         - fail of GET_PublicRunningAuctions>3%, continue as failed
+         - fail of GET_PublicRunningAuctionDetails>3%, continue as failed
+         - fail of GET_AuctionDetailsForPublic>3%, continue as failed
+         - fail of GET_ParticipatedBidders>3%, continue as failed
+         - fail of GET_BiddingCount>3%, continue as failed
+         - fail of GET_RealestateAssetDetails>3%, continue as failed
+         - fail of GET_TenantsAsync>3%, continue as failed
+         - fail of GET_AssetTypesAsync>3%, continue as failed
+         - fail of GET_BiddingAuctionDetails>3%, continue as failed
+         - fail of GET_FixedDeductibleValueFromBidder>3%, continue as failed
+         - fail of POST_ConvertNumberToText>3%, continue as failed
+         - fail of GET_CurrentTenantName>3%, continue as failed
+         - fail of GET_VateRateFromAssetType>3%, continue as failed
+         - fail of GET_SeekingRateBidderFromAssetType>3%, continue as failed
+         - fail of GET_getauctionTimeLifted>3%, continue as failed
+         - fail of GET_MyFavouriteAsync>3%, continue as failed
+         - fail of POST_auth/AuthenticatePublicFrontEnd>3%, continue as failed
+         - fail of GET_AllBankForLookup>3%, continue as failed
+         - fail of GET_Bill/GetMyBills>3%, continue as failed
+         - fail of GET_Bill/GetMyBills2>3%, continue as failed
+         - fail of GET_Wallets/GetMyWallet>3%, continue as failed
+         - fail of POST_WalletOrders/CreateOrEdit>3%, continue as failed 
+         - fail of GET_PublicRunningAuctions>3%, continue as failed
+         - fail of POST_CheckBidderAuctionStatus>3%, continue as failed
+         - fail of POST_EnterMazadForMazadUserAsync>3%, continue as failed
+         - fail of GET_BiddingAuctionDetails>3%, continue as failed
+         - fail of GET_Biddings/GetAuctionPrices>3%, continue as failed
+         - fail of GET_Biddings/GetLast5Pidding>3%, continue as failed
+         - fail of GET_Biddings/GetParticipatedBidders>3%, continue as failed
+         - fail of GET_Biddings/GetBiddingCount>3%, continue as failed
+         - fail of GET_Biddings/GetAuctionBidderRefrenceNumber>3%, continue as failed
+         - fail of POST_ConvertNumberToText>3%, continue as failed
+         - fail of GET_AuctionDetailsForPublic>3%, continue as failed
+         - fail of GET_Auctions/GetRealEstateDetailsById>3%, continue as failed
+         - fail of POST_Biddings/AddPaidAsync>3%, continue as failed
+     
+     
+         
+     - module: junit-xml
+       data-source: pass-fail
+       filename: $(fileNamePathOfProject)
+     
+     scenarios:
+       LoadTest:
+         script: $(ScenariosScriptPath)
+         data-sources:  # these are data-sources options for Jmeter. See more info below.
+         - path: $(System.ArtifactsPath)/Bidders.txt  # this is a full form
+           delimiter: ';'
+           quoted: false
+           loop: true
+           variable-names: username
+           random-order: false
+     
+     modules:
+       jmeter:
+        gui: false
+        path: /home/qcadmin/apache-jmeter-5.3/bin/jmeter.sh
+        
+     settings:
+        executor: jmeter
+
+    jmeterHome: '$(JMeter Home)'
+
+    jmeterPath: '$(JMeter Path)'
+
+    jmeterVersion: '$(JMeter Version)'
+
+  condition: succeededOrFailed()
+# Publish Baseline Test Results 
+
+- task: PublishTestResults@2
+  displayName: 'Publish Baseline Test Results'
+  inputs:
+    testResultsFiles: 'Result_Baseline_VM.xml'
+    searchFolder: '$(searchFolder)'
+    mergeTestResults: true
+    testRunTitle: 'Baseline Result'
+  condition: always()
+
+# Upload Release Artifact HTML Report 
+- task: benjhuser.ReleaseArtifacts.PublishReleaseArtifact.PublishReleaseArtifact@1
+  displayName: 'Upload Release Artifact HTML Report'
+  inputs:
+    artifactPath: '$(artifactPath)'
+  condition: always()
+
+# -----------------------------------------------------

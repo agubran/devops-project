@@ -1,0 +1,29 @@
+parameters:
+  - name: DEPLOY_BRANCH_NAME
+    default: $(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)-$(Build.BuildId)
+    type: string
+
+steps:
+- checkout: config #name of the config repo
+  persistCredentials: true
+- script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+  displayName: Configure Git
+  env:
+    PR_USER_NAME: "CI/CD"
+    PR_USER_EMAIL: "CICD@example.com"
+
+# Install extensions automatically
+- bash: az config set extension.use_dynamic_install=yes_without_prompt
+  displayName: 'Install extensions automatically'
+  
+- bash: echo ${AZURE_DEVOPS_CLI_PAT} | az devops login
+  env:
+    AZURE_DEVOPS_CLI_PAT: $(System.AccessToken)
+  displayName: 'Login Azure DevOps Extension'
+
+- bash: az devops configure --defaults organization=$(System.TeamFoundationCollectionUri) project=$(System.TeamProjectId) --use-git-aliases true
+  displayName: 'Set default Azure DevOps organization and project'
+
+- bash: |
+   az repos pr create --project $(System.TeamProjectId) --repository $(CONFG_REPO_NAME) --target-branch $(TARGET_BRANCH) --source-branch ${{ parameters.DEPLOY_BRANCH_NAME }} --title "deployment ${{ parameters.DEPLOY_BRANCH_NAME }}" --bypass-policy false --squash --delete-source-branch true --auto-complete true
+  displayName: 'Create PR into Test'

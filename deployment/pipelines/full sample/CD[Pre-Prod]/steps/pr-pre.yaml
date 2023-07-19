@@ -1,0 +1,103 @@
+parameters:
+  - name: DEPLOY_BRANCH_NAME
+    default: Pre/$(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)
+    type: string
+  - name: MANIFEST_DIR # The Path to the Service Manifest in the GitOps Repo
+    type: string
+
+steps:
+  - checkout: self
+  - checkout: Config #name of the config repo
+    persistCredentials: true
+  - script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+    displayName: Configure Git
+    env:
+      PR_USER_NAME: "CI/CD"
+      PR_USER_EMAIL: "CICD@example.com"
+    workingDirectory: ${{ parameters.MANIFEST_DIR }}
+
+  - script: git pull origin Test && git checkout Test
+    workingDirectory: ${{ parameters.MANIFEST_DIR }}
+    displayName: Checkout Test Branch
+
+  - bash: |
+      if [[ "$(grep -hr 'true' --include=components.yaml *)" ]]
+      then
+        echo "There is at least one component that will be deployed in Preproduction Environment"
+      else
+        echo "No component needs to be deployed in Preproduction Environment, Check the components.yaml file if the deploy status checked to true?"
+        exit 1
+      fi
+    displayName: 'Check deployments'
+  - bash: |
+      grep -hr -A 1 'Deploy_' --include=components.yaml * | sed 's/-\ name://g' | sed 's/value\://g' | sed 's/--//g' | sed '/^$/d' | sed 's/ //g' >> test.txt
+      while read -r ONE || [ -n "$ONE" ]; do
+          read -r TWO
+          echo $TWO
+          if [[ "$TWO" == "true" ]]
+          then
+            echo $ONE >> test1.txt
+            echo $TWO >> test1.txt 
+          fi 
+      done < test.txt
+      rm test.txt
+    displayName: 'grep deployment'
+
+  - bash: |
+      while read -r ONE || [ -n "$ONE" ]; do
+          read -r TWO
+          grep -hr -A 1 "$(echo $ONE | sed 's/Deploy_/Path_/g')" --include=components.yaml * | sed 's/-\ name://g' | sed 's/value\://g' | sed 's/--//g' | sed '/^$/d' | sed 's/ //g' >> ${{ parameters.MANIFEST_DIR }}/paths.txt
+      done < test1.txt
+      rm test1.txt
+    displayName: 'grep paths'
+
+  - bash: |
+      cd ${{ parameters.MANIFEST_DIR }}
+      git checkout Test
+      git pull 
+      git checkout Preprod
+      git pull 
+      git checkout -b ${{ parameters.DEPLOY_BRANCH_NAME }}
+      while read -r ONE || [ -n "$ONE" ]; do
+          read -r TWO
+          git checkout Test $TWO
+          echo $TWO
+          find $TWO -type f -name "*.yaml" -print0 | xargs -0 sed -i '/^avp:/s/\/test//' | xargs -0 sed -i '/^avp:/s/data/data\/Pre/'
+          sed -i '/^avp:/s/data/data\/Pre/' $TWO/*.yaml
+      done < paths.txt
+      rm paths.txt
+    displayName: 'checkout paths'
+
+  - script: |
+      cd ${{ parameters.MANIFEST_DIR }}
+      git status
+      #find . -n *.yaml -exec sed -i '/^avp:/s/\/test//' {} \;
+      #find . -n *.yaml -exec sed -i '/^avp:/s/data/data\/preprod/' {} \;
+      #find ./ -type f -exec sed -i '/^avp:/s/\/test//' values.yaml {} \;
+      #find ./ -type f -exec sed -i '/^avp:/s/data/data\/preprod/' values.yaml {} \;
+      sed -i '/^avp:/s/\/test//' *
+      sed -i '/^avp:/s/data/data\/Pre/' *
+      echo "updateing the avp path"
+      git add .
+      git commit -m "Updated Pre-Prod Values"
+      git push --set-upstream origin ${{ parameters.DEPLOY_BRANCH_NAME }}
+    displayName: 'Update Values-Pre'
+
+  # Create a PR into preprod
+  
+  - bash: |
+      az config set extension.use_dynamic_install=yes_without_prompt
+      echo ${AZURE_DEVOPS_CLI_PAT} | az devops login
+    env:
+      AZURE_DEVOPS_CLI_PAT: $(System.AccessToken)
+    displayName: 'Login Azure DevOps Extension'
+
+  - bash: |
+      az devops configure --defaults 'organization=$(System.TeamFoundationCollectionUri)' 'project=$(System.TeamProject)' --use-git-aliases true
+    displayName: 'Set default Azure DevOps organization and project'
+
+  - bash: |
+      cd ${{ parameters.MANIFEST_DIR }}
+      az repos pr create --project '$(System.TeamProject)' --repository $(Config_Repo) --target-branch $(TARGET_BRANCH) --source-branch ${{ parameters.DEPLOY_BRANCH_NAME }} --title "deployment ${{ parameters.DEPLOY_BRANCH_NAME }}" --bypass-policy false --squash --delete-source-branch true --reviewers $(Reviewers)
+    displayName: 'Create a PR'
+

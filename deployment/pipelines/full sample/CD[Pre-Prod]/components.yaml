@@ -1,0 +1,26 @@
+variables:
+# -------- Deploy Path -------------------
+  - name: Deploy_DB
+    value: false
+  - name: Path_DB #Path_ is used for component path in config repo
+    value: DB.txt
+
+  - name: Deploy_rega-api 
+    value: true
+  - name: Path_rega-api
+    value: rega/charts/regaapi/
+
+  - name: Deploy_rega-publicportal
+    value: false
+  - name: Path_rega-publicportal
+    value: rega/charts/public/
+
+  - name: Deploy_rega-hangfire
+    value: false
+  - name: Path_rega-hangfire
+    value: rega/charts/hangfire/
+
+  - name: Deploy_rega-staticcontent
+    value: false
+  - name: Path_rega-staticcontent
+    value: rega/charts/staticcontent/

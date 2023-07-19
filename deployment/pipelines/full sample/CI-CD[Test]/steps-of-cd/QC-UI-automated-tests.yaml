@@ -1,0 +1,95 @@
+steps:
+
+- checkout: QC # name of the config repo
+  persistCredentials: true
+- task: PythonScript@0
+  displayName: 'Run a Python script'
+  inputs:
+    scriptSource: inline
+    script: |
+      import json
+      import requests
+      import sys
+      class RP_API():
+          def getUID(self, username, password):
+              try:
+                  self.username = username
+                  self.password = password
+
+                  url = "http://qcauto.thiqah.sa:8080/uat/sso/oauth/token?grant_type=password&password="+self.password+"&username="+self.username
+                  url2 = "http://qcauto.thiqah.sa:8080/uat/sso/me/apitoken"
+
+                  headers1 = {
+                      'authorization': 'Basic dWk6dWltYW4=',
+                      'cache-control': 'no-cache'
+                  }
+                  response1 = requests.request("POST", url, headers=headers1)
+                  access_token = response1.json()['access_token']
+                  headers2 = {
+                      'Accept': 'application/json',
+                      'Authorization': 'bearer ' + access_token,
+                      'Cookie': 'SESSION=eee08366-e63d-40f1-8e39-e15c9a1d41a1'
+                  }
+
+                  response2 = requests.request("GET", url2, headers=headers2)
+                  uid = response2.json()['access_token']
+                  return uid
+              except:
+                  print("Please check the reportport site, username and cretional")
+
+          def writeToymalFile(self, uid):
+              self.uid = uid
+              dict_file = {'RP_UUID': self.uid}
+
+              # print(dict_file)
+              with open(r'ReportportalUID.json', 'w') as file:
+                  documents = json.dump(dict_file, file)
+
+          def runAutomationScriptRemotly(self, username, password):
+              self.username= username
+              self.password = password
+
+              a = RP_API()
+              uidToken = a.getUID(str(self.username), (self.password))
+
+              a.writeToymalFile(uidToken)
+
+      if len(sys.argv) == 3:
+          a = RP_API()
+          a.runAutomationScriptRemotly(sys.argv[1],sys.argv[2])
+
+      else:
+          print("Please make sure that you have added username and password to arg")
+
+- task: Mohamed-Elarousy.ThiqahGetArtifacts.buildvariablefromjson.buildvariablefromjson@1
+  displayName: 'Variable From Json on Build'
+  inputs:
+    FilePath: '$(VariableFronJsonFilePath)'
+# -------------------------------------------
+- task: DownloadSecureFile@1
+  displayName: 'Download secure file'
+  inputs:
+    secureFile: '$(QCSecureFile)'
+# --------------------
+- script: |
+   robot --listener reportportal_listener \
+   --variable RP_ENDPOINT:'http://qcauto.thiqah.sa:8080' \
+   --variable RP_UUID:'$(UI_RP_UUID)' \
+   --variable RP_LAUNCH:'$(UI_RP_LAUNCH)' \
+   --variable RP_PROJECT:'$(UI_RP_PROJECT)' \
+   --variable zelinum_URL:"http://robotthq:Robotthq2141@qcauto.thiqah.sa:4433/wd/hub" \
+   --variable Test_Environment:Testing \
+   -V Resources/Project_Configration/Test_Configration.yaml \
+   -V $(AmalyMarketplace_DBConnections_Test.secureFilePath) \
+   -x outputxunit.xml \
+   Tests
+#  workingDirectory: '$(QCWorkingDir)'
+  displayName: 'Command Line Script'
+# ---------------------
+- task: PublishTestResults@2
+  displayName: 'Publish Test Results outputxunit.xml'
+  inputs:
+    testResultsFiles: outputxunit.xml
+    searchFolder: '$(QCWorkingDir)'
+    failTaskOnFailedTests: true
+  condition: succeededOrFailed()

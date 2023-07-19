@@ -1,0 +1,98 @@
+parameters:
+  - name: buildID
+    default: true
+    type: string
+  - name: DefitionID
+    default: true
+    type: string
+  - name: DBName
+    default: none
+    type: string
+  - name: ServerName
+    default: none
+    type: string
+  - name: dacpacName
+    default: none
+    type: string
+  - name: publishProfile
+    default: none
+    type: string
+  - name: DeveloperEmail
+    default: none
+    type: string
+  - name: ApprovalJobName
+    default: none
+    type: string
+  - name: DBA_ApproverEmail
+    default: none
+    type: string
+  - name: Notes
+    default: none
+    type: string
+
+steps:
+- checkout: Config
+  persistCredentials: true
+- script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+  displayName: Configure Git
+  env:
+    PR_USER_NAME: "CI/CD"
+    PR_USER_EMAIL: "CICD@example.com"
+  workingDirectory: $(System.DefaultWorkingDirectory)
+
+- task: PowerShell@2
+  inputs:
+    targetType: 'inline'
+    script: |
+       git checkout Test
+       git pull
+       $DbDefID= ([regex]::Matches((type DB.txt), "^([^##])+").value)
+       $DbBuildID= ([regex]::Matches((type DB.txt), "(?<=\##)(\w+)").value)
+       Write-Host "##vso[task.setvariable variable=DB_Bulid_DefitionID;isOutput=true]$DbDefID"
+       Write-Host "##vso[task.setvariable variable=DB_Bulid_buildID;isOutput=true]$DbBuildID"
+  name: DetermineResult
+  displayName: Get artifact parameters
+
+
+- task: DeleteFiles@1
+  displayName: 'Delete files from C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\'
+  inputs:
+    SourceFolder: 'C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\'
+    Contents: '**'
+
+- task: DownloadBuildArtifacts@0
+  displayName: 'Download Build Artifacts'
+  inputs:
+    buildType: specific
+    project: '$(System.TeamProject)'
+    pipeline: '$(DetermineResult.DB_Bulid_DefitionID)'
+    buildVersionToDownload: specific
+    buildId: '$(DetermineResult.DB_Bulid_buildID)'
+    downloadType: specific
+    itemPattern: |
+     ${{ parameters.dacpacName }}
+     ${{ parameters.publishProfile }}
+     
+    downloadPath: 'C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\'
+    extractTars: false
+
+- script: 'sqlpackage.exe /Action:Script /SourceFile:"C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\${{ parameters.dacpacName }}"    /TargetServerName:"${{ parameters.ServerName }}" /TargetDatabaseName:"${{ parameters.DBName }}" /OutputPath:"C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\${{ parameters.DBName }}.sql"   /Profile:"C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\${{ parameters.publishProfile }}'
+  displayName: 'difference script'
+
+- task: benjhuser.ReleaseArtifacts.PublishReleaseArtifact.PublishReleaseArtifact@1
+  displayName: 'Upload script in logs'
+  inputs:
+    artifactPath: 'C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\${{ parameters.DBName }}.sql'
+
+- task: DBScriptAprovalCI@0
+  inputs:
+    DatabaseServerIP: ${{ parameters.ServerName }}
+    DatabaseName: ${{ parameters.DBName }}
+    ScriptURL: 'C:\DatabaseScripts\$(System.TeamProject)\${{ parameters.DBName }}\${{ parameters.DBName }}.sql'
+    requesterEmail: ${{ parameters.DeveloperEmail }}
+    Notes: ${{ parameters.Notes }}
+    ApprovalJobName:  ${{ parameters.ApprovalJobName }}
+    DBA_ApproverEmail: ${{ parameters.DBA_ApproverEmail }}
+  displayName: 'DBScriptAprovalCI'
+
+

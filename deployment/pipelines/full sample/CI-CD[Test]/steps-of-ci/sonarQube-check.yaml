@@ -1,0 +1,8 @@
+steps:
+# App Sonarqube Test
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |          
+      echo 'tests need to be added'
+  displayName: 'SonarQube'

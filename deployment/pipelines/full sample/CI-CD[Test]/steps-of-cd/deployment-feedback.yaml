@@ -1,0 +1,35 @@
+parameters:
+  - name: kubernetesServiceEndpoint # kubernetes Service Endpoint
+    type: string
+
+steps:
+
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+# Deployment Feedback 
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      kubectl get -n $(NAMESPACE) pods -o=jsonpath="{..status.containerStatuses[*].image}" > test.txt
+      if [[ "$(find ./test.txt -type f | xargs grep -Hni "$(IMAGE):$(Build.BuildNumber)")" ]]
+      then
+        echo "##[section]Your newly created image deployed in the targeted env"
+      else
+        echo "##[error]Your newly created image not deployed in the targeted env yet, checkout argocd"
+        exit 1
+      fi
+  displayName: Image Tag 
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      timeout 60s kubectl rollout status deployment/$(DeployName) -n $(NAMESPACE) | grep "successfully rolled out"
+  displayName: Rollout Status

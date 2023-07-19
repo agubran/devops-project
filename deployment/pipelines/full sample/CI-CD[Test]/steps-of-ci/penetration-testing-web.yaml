@@ -1,0 +1,64 @@
+parameters: 
+- name: SonarQubeProjectKey
+  type: string 
+- name: SonarQubeProjectName
+  type: string 
+- name: scannerMode
+  type: string 
+- name: configMode
+  type: string 
+- name: DepCheckProjectName
+  type: string
+- name: SonarQubeServiceConnection
+  type: string
+
+
+steps:
+- checkout: App_Repo
+  clean: true
+
+# Running Dependency Check
+- task: dependency-check-build-task@6
+  displayName: Dependency Check
+  inputs:
+    projectName: ${{ parameters.DepCheckProjectName }}
+    scanPath: '**/*.csproj '
+    format: HTML,JSON,JUNIT
+    warnOnCVSSViolation: true
+    enableExperimental: true
+    enableRetired: true
+    enableVerbose: true
+
+# Publish Dependency Check Result
+- task: PublishTestResults@2
+  displayName: 'Publish Dependency Check Result'
+  inputs:
+    testResultsFiles: e:\Agent1\_work\442\TestResults\dependency-check\*junit.xml
+    testRunTitle: Dependency Check
+
+# WhiteSource Bolt
+- task: whitesource.whiteSource-bolt-v2.bolt.wss.WhiteSource@21
+  displayName: WhiteSource Bolt
+
+- task: Npm@1
+  displayName: 'npm install'
+  inputs:
+    verbose: false
+
+# Prepare analysis on SonarQube
+- task: SonarSource.sonarqube.15B84CA1-B62F-4A2A-A403-89B77A063157.SonarQubePrepare@5
+  displayName: 'Prepare analysis on SonarQube'
+  inputs:
+    SonarQube: ${{ parameters.SonarQubeServiceConnection }}
+    scannerMode: ${{ parameters.scannerMode }}
+    configMode: ${{ parameters.configMode }}
+    cliProjectKey: '${{ parameters.SonarQubeProjectKey }}'
+    cliProjectName: '${{ parameters.SonarQubeProjectName }}'
+
+# Run Code Analysis
+- task: SonarQubeAnalyze@5
+  displayName: Run Code Analysis
+
+# Publish Quality Gate Result
+- task: SonarQubePublish@5
+  displayName: Publish Quality Gate Result

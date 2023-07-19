@@ -1,0 +1,31 @@
+parameters:
+  - name: acr # name of Azure Container Registry
+    type: string
+  - name: ScanRepo # name of container repository
+    type: string
+  - name: AssessmentPath
+    type: string
+  - name: serviceprincipalUsername 
+    type: string
+  - name: serviceprincipalPassword
+    type: string
+  - name: acrTenant
+    type: string
+
+steps:
+#- powershell: |
+#   az login --service-principal --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }} --tenant ${{ parameters.acrTenant }}
+#   #$(Build.SourcesDirectory)/${{ parameters.AssessmentPath }} -registryName tbsazdevacr -repository ${{ parameters.ScanRepo }} -tag $(Build.BuildNumber)
+#  displayName: "Image Scanning Result"
+
+# Image Scanning
+- task: MohammedEMahdy.DB-Migrator.ImageScan.ImageScan@0
+  displayName: ImageScan
+  inputs:
+    serviceprincipalUsername: '${{ parameters.serviceprincipalUsername }}'
+    serviceprincipalPassword: '${{ parameters.serviceprincipalPassword }}'
+    acrTenant: '${{ parameters.acrTenant }}'
+    registryName: tbsazdevacr
+    repository: ${{ parameters.ScanRepo }} 
+    tag: '$(Build.BuildNumber)'
+#  continueOnError: true

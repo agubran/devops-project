@@ -1,0 +1,74 @@
+parameters:
+#  - name: acr # name of Azure Container Registry
+#    type: string
+#  - name: repository # name of container repository
+#    type: string
+  - name: serviceprincipalUsername 
+    type: string
+  - name: serviceprincipalPassword
+    type: string
+  - name: kubernetesServiceEndpoint
+    type: string
+steps:
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+# ------------------
+- bash: |
+    echo "Removing the previous files"
+    if ls | grep test1.txt; then rm test1.txt; fi
+    if ls | grep test2.txt; then rm test2.txt; fi
+    deploy=$(kubectl get deploy -o name -n $(NAMESPACE) | sed 's/deployment.apps\///g')
+    #echo $deploy;
+    for i in $deploy; do echo $i >> test1.txt &&\
+      kubectl get deploy $i -o yaml -n $(NAMESPACE) | grep 'image:' >> test1.txt &&\
+        sed -i 's/f:image:\ {}//g' test1.txt &&\
+          sed -i 's/:/\ /g' test1.txt &&\
+            sed -i 's/-\ image://g' test1.txt &&\
+              sed -i 's/image://g' test1.txt &&\
+                sed -i 's/^ *//g' test1.txt; done
+    cat test1.txt | sed 's/^ *//g' test1.txt > test2.txt
+    cat test1.txt | sed 's/tbsazdevacr.azurecr.io\///g' > test2.txt
+    cat test2
+    sed -i 's/-\ image//g' test2.txt
+    sed -i 's/image//g' test2.txt
+    sed -i '/^$/d' test2.txt
+    cat test2.txt | sed 's/^ *//g' > testx.txt
+    rm test1.txt
+    rm test2.txt
+    while read -r ONE || [ -n "$ONE" ] ; do
+        read -r TWO
+        echo $TWO | sed 's/ /\n/g' >> test3.txt 
+    done < testx.txt
+    cat test3.txt
+  displayName: 'Preparing' 
+
+# Pushing the Image to Prod/* Repo
+#- bash: |
+#   az acr login -n tbsazdevacr --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }}
+#   while read -r ONE || [ -n "$ONE" ]; do
+#       read -r TWO
+#       prodtag=$(echo tbsazdevacr.azurecr.io/prod/$ONE:$TWO | sed 's/\-signed//g')
+#       docker pull tbsazdevacr.azurecr.io/$ONE:$TWO
+#       docker tag tbsazdevacr.azurecr.io/$ONE:$TWO $prodtag
+#       docker push $prodtag
+#   done < test4.txt
+#  displayName: 'Image Push to prod'
+
+#Lock the Container Image & its Repo
+- bash: |
+   az acr login -n tbsazdevacr --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }}
+   while read -r ONE || [ -n "$ONE" ]; do
+       read -r TWO
+       #prodtag=$(echo prod/$ONE:$TWO | sed 's/\-signed//g')
+       #prodrepo=$(echo prod/$ONE)
+       az acr repository update --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }} --name tbsazdevacr --image $ONE:$TWO --delete-enabled false --write-enabled true
+       az acr repository update --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }} --name tbsazdevacr --repository $ONE --delete-enabled false --write-enabled true
+   done < test3.txt
+   rm test3.txt
+  displayName: 'Image & Repo Lock'

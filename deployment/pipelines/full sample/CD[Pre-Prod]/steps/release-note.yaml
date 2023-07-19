@@ -1,0 +1,17 @@
+steps:
+- task: mspremier.CreateWorkItem.CreateWorkItem-task.CreateWorkItem@1
+  displayName: 'Create work item'
+  inputs:
+    teamProject: $(System.TeamProject)
+    workItemType: 'Release Note'
+    title: '[ Pre ] Auto Release Note [ Build: $(Build.BuildNumber) ]'
+    areaPath: '$(System.TeamProject)'
+    fieldMappings: |
+      Description='Project name: $(System.TeamProject), Build Id: $(Build.BuildId), Build: $(Build.BuildNumber)'
+    createOutputs: true
+    outputVariables: 'WorkItemUrl:CWI.WorkItemEditUrl'
+    associate: true
+    linkWorkItems: true
+    linkType: System.LinkTypes.Related
+    linkTarget: associate
+    linkPR: false

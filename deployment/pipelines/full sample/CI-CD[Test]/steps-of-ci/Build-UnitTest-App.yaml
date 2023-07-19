@@ -1,0 +1,25 @@
+parameters:
+  - name: project
+    type: string
+  - name: testProject
+    type: string
+  - name: APP_REPO_DIR
+    type: string 
+
+steps:
+- checkout: App_Repo
+  persistCredentials: true
+
+- task: DotNetCoreCLI@2
+  displayName: "Building the App"
+  inputs:
+    command: 'build'
+    projects: ${{ parameters.project }}
+#  workingDirectory: ${{ parameters.APP_REPO_DIR }}
+
+- task: DotNetCoreCLI@2
+  displayName: "Testing the App"
+  inputs:
+    command: 'test'
+    projects: ${{ parameters.testProject }}
+#  workingDirectory: ${{ parameters.APP_REPO_DIR }}

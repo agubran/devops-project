@@ -1,0 +1,18 @@
+parameters:
+  - name: ArgocdAppAddrs # Argocd Address
+    type: string
+  - name: argocdUserName # Argocd UserName
+    type: string
+  - name: argocdPassword # Argocd Password
+    type: string
+  - name: ArgocdAppName # Argocd Apps, sperate them with coma and space (e.g., app1, app2)
+    type: string
+
+
+steps:
+- bash: |
+   echo "Apps Sync"
+   echo "Argocd Login"
+   echo -e "y" | argocd login ${{ parameters.ArgocdAppAddrs }} --username ${{ parameters.argocdUserName }} --password ${{ parameters.argocdPassword }}
+   argocd app sync ${{ parameters.ArgocdAppName }}
+  displayName: 'Argocd Sync'

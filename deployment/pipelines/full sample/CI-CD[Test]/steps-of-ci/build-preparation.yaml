@@ -1,0 +1,14 @@
+steps:
+- task: PowerShell@2
+  name: 'addBranchName'
+  displayName: 'Update Build Name'
+  inputs:
+    targetType: inline
+    script: |
+      echo "*** Build.SourceBranch: $(AppRepoBranch)"
+      $AppRepoBranch = $("$(AppRepoBranch)" -replace "refs/heads/", "")
+      $rev = "$(BUILD.BUILDNUMBER)"
+      $ver = $("${rev}-${AppRepoBranch}" -replace "/", "-")
+      echo "*** Strip branch name from SourceBranch: $AppRepoBranch"
+      echo "*** ver: $ver"
+      echo "##vso[build.updatebuildnumber]$ver"

@@ -1,0 +1,8 @@
+steps:
+- checkout: App_Repo
+  persistCredentials: true
+# If you using helmchart
+- bash: |
+   pip install checkov
+   checkov -d $(MANIFEST_PATH)
+  displayName: 'Scan Helmchart Yamls using checkov'

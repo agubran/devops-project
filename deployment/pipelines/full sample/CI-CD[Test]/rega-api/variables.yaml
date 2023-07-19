@@ -1,0 +1,184 @@
+variables:
+  - name: PROJECT_NAME
+    value: rega 
+  - name: PROGRAM_NAME # The Name of the Project 
+    value: emergingbusiness
+  - name: PRODUCT_NAME
+    value: rega
+  - name: REPO_NAME  # ACR Repo Name
+    value: api
+  - name: CONFG_REPO_NAME # Config Repo Name
+    value: Config
+  - name: APP_REPO_NAME # Application Repo Name
+    value: REGA_Backend
+  - name: APP_REPO_DIR
+    value: $(System.DefaultWorkingDirectory)/App_Repo
+  - name: MANIFEST_DIR # The Dir of the Manifest
+    value: $(System.DefaultWorkingDirectory)/$(CONFG_REPO_NAME)
+  - name: PERF_REPO_NAME
+    value: Rega_ShiftLeftPerformanceTest
+  - name: PERF_DIR
+    value: $(System.DefaultWorkingDirectory)/$(PERF_REPO_NAME)
+# -----------------Tag Details-----------------------
+  - name: version.major 
+    value: 1
+  - name: version.minor 
+    value: 0
+  - name: IMAGETAG # Image Tag
+    value: $(Build.BuildNumber)
+# -----Parameters: Build and Run Unit Test -----
+  - name: RunUnitTest # Want to run unit test in this build?
+    value: 'false' # true or false
+  - name: IsDotNet # Is It .NET Service?
+    value: 'true' # true or false
+  - name: projectPath
+    value: 'src/Thiqah.Rega.Web.HttpApi.Host/Thiqah.Rega.Web.HttpApi.Host.csproj'
+  # - name: testProject 
+  #   value: 'test/Thiqah.Mazad.Tests/Thiqah.Mazad.Tests.csproj'
+# --------Run SonarQube-------------------------
+  - name: RunSonarQube # Want to Run SonarQube As Part of this Pipeline
+    value: 'true' # true or false
+# --------Parameters: Container Image-----------
+    # path to docker file in the app repo
+  - name: sourceLocation
+    value: src/Thiqah.Rega.Web.HttpApi.Host/
+    # docker build context path
+  - name: buildcontext
+    value: .
+    # docker file name
+  - name: dockerFile
+    value: "Dockerfile" 
+  - name: acr # Name of the ACR
+    value: acr
+#  - name: AssessmentPath # Path to the Assessment Script
+#    value: pipelines/build/ImageScanSummaryAssessmentGate.ps1
+  - name: signingKeyFile # The Used Key to Sign the Image
+    value: 3524182039859418cc9eba473a54a53397ce41b46ccee5ece8a5d1e3ba9878d4.key
+  - name: acrName
+    value: tbsazdevacr.azurecr.io
+# -------- Manifest Type-----------
+  - name: IsHelmChart
+    value: true
+  - name: IsPlainYaml
+    value: false
+# ---------- Build DacPac ----------------
+  - name: Deploy_DB
+    value: true
+  - name: DBsolution
+    value: src/Thiqah.Rega.Database/Thiqah.Rega.Database.sqlproj
+  - name: msbuildArgs
+    value: /p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactstagingdirectory)\\"
+  - name: BuildPlatform
+    value: release
+  - name: BuildConfiguration
+    value: any cpu
+  - name: SourceFoldertoCopy
+    value: src/Thiqah.Rega.Database\bin\Output
+# --------Parameters: Updating Manifests-----------
+    # path of Manifest folder in app repo for ex: "xyz/charts/component-1/"
+  - name: MANIFEST_PATH
+    value: Deployment/helm-charts/regaapi
+  - name: REPO_URL # Config Repo
+    value: 'https://dev.azure.com/ThiqahDev/REGA%20Real%20Estate%20Brokers%20Platform%20MVP/_git/Config'
+# ----- Full Path For the Manifest to Be Copied --------
+  - name: SourceManifestPath # Path to the Service Manifest in the App Repo
+    value: $(Build.SourcesDirectory)/$(APP_REPO_NAME)/$(MANIFEST_PATH)
+    # path of Manifest folder in config repo ( ended "without" '/' ) for ex: "mazad/charts/component-1"
+    # and it must be created first
+  - name: DestManifestPath 
+    value: rega/charts/regaapi
+    # The yaml that Contains the image tag value which needs to be updated
+  - name: ImageTagFile 
+    value: $(DestManifestPath)/values.yaml
+# -------------------
+  - name: Reviewers # List of the Reviewers, you can add mmany reviewers, sperate them by space
+    value: a.mewida@dev.thiqah.sa
+# -----K8S Connection & Deployment FeedBack----------
+  - name: kubernetesServiceEndpointTest # Test K8S EndPoint
+    value: 'aks-rega'
+  - name: NAMESPACE # The Namespace Name of the Service to be Deployed in
+    value: rega
+    # DeployName: will be used for testing that deployment is created and its status is Ok
+    # format: {argo-application-name}-{chart-name}
+  - name: DeployName
+    value: Rega-api
+  - name: IMAGE # Image Name
+    value: $(REPO_NAME)
+  - name: extraTimeToGetResult # Do you need extra time to get a result from the deployment? ?
+    value: false
+  # ####################   Global Variable Group Name ###################
+  # this variable group should have below keys and its vaules
+  # "acr-project-username": acr project service account username or Id
+  # "acr-project-password": acr project service account password
+  # "acr-scan-username": acr scan service account username or Id
+  # "acr-scan-password": acr scan service account password
+  # "acr-tenant": tenant id
+  # 'pat': personal access token to be used in dockerfile for restoring packages 
+
+  - name: GloVarsGroupName # Name of the Global Variable Group
+    value: Rega-glob-group
+
+# ----- Customized Variable Group Name & Keys -----
+  - name: CuzVarsGroupName # # Name of the Customized Variable Group
+    value: rega-passphrase
+  - name: keyVarName # The Key Name of the Value of the Signing Secret in the Variable Group
+    value: $(rega)   # Key Name
+# ------ QC Testing -----------
+  - name: RunQCTest # Do you need to run QC test for this component? 
+    value: false
+  - name: ApiQCTest # Api Test?
+    value: false
+  - name: UIQCTest # UI Test?
+    value: false 
+  - name: QCVarsGroupName # Variable Group
+    value: 'QC_Automation'
+  - name: QCWorkingDir   # Working Dir for the UI
+    value: 
+  - name: VariableFronJsonFilePath
+    value: 
+  # ---- API QC -----
+  - name: ApiQCWorkingDir
+    value: ./
+  - name: API_RP_UUID
+    value: $(RP_UUID)
+  - name: API_RP_LAUNCH
+    value: DevOps_eAuction_API(Test)
+  - name: API_RP_PROJECT
+    value: REGA Real Estate Brokers Platform MVP
+  - name: ApiVariableFronJsonFilePath
+    value: ReportportalUID.json
+  # ---- UI QC -----
+  - name: UI_RP_UUID
+    value: 
+  - name: UI_RP_LAUNCH
+    value: 
+  - name: UI_RP_PROJECT
+    value: 
+  - name: QCSecureFile
+    value: #Mazad_DB.yaml
+# ------------- Performance Test--------------------
+  - name: RunPerfTest # Do you need to run performance test for this component? 
+    value: false # -> Yes!
+# ---------------Pen Testing(SAST)------------------
+  - name: RunSastTest
+    value: true
+  - name: DepCheckProjectName
+    value: SASO Acceptance Gate
+  - name: nugetConfigPath
+    value: ./NuGet.Config
+  - name: SonarQubeServiceConnection
+    value: 11676784-def9-4665-aec8-554b2207b9eb
+  - name: SonarQubeProjectKey
+    value: REGA-api #Mazad_Backend
+  - name: SonarQubeProjectName
+    value: REGA-api #Mazad_Backend
+# ----- Database Script data---------
+  - name: databaseScript
+    value: true
+  - name: DB_dacpacName
+    value:  drop/Thiqah.Rega.Database.dacpac
+  - name: DB_publishProfile
+    value:  drop/Thiqah.Rega.Database.publish.xml
+  - name: ConnectionString
+    value:  "Server=172.25.13.21;User Id=mowathiq;Password=wWu[c8renWK5T+c];Database=REGA"
+# ---------------------

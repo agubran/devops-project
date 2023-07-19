@@ -1,0 +1,71 @@
+parameters:
+  - name: kubernetesServiceEndpoint # kubernetes Service Endpoint
+    type: string
+  - name: currentEnv
+    type: string 
+
+steps:
+- checkout: Config #name of the config repo
+  persistCredentials: true
+
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+# ------------------
+# Deployment Feedback
+# To make sure that the deployed image matchs the image in the git repo
+- bash: |
+    git checkout ${{ parameters.currentEnv }}
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      deploy=$(kubectl get deploy -o name -n $(NAMESPACE) | sed 's/deployment.apps\///g')
+      for i in $deploy; do echo $i >> test1.txt && kubectl get deploy $i -o yaml -n $(NAMESPACE) | grep "image:" | sed 's/:/\ /g' | sed 's/-\ image//g' | sed 's/^ *//g' >> test1.txt; done
+      cat test1.txt | sed 's/^ *//g' > test2.txt
+      rm test1.txt
+  displayName: Image Tag 
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      while read -r ONE || [ -n "$ONE" ] ; do
+          read -r TWO
+          echo $TWO | sed 's/ /\n/g' >> test3.txt 
+      done < test2.txt
+      rm test2.txt
+  displayName: Image Tag Con
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      while read -r ONE || [ -n "$ONE" ]; do
+          read -r TWO
+          if [[ "$(grep -wFr "$ONE:$TWO" --include=\*.{yaml,yml} *)"]]
+          then
+            echo "Config Repo in the ${{ parameters.currentEnv }} env and the cluster are matched"
+          else
+            echo "Config Repo in the ${{ parameters.currentEnv }} env and the cluster are not matched"
+            exit 1
+          fi
+      done < test3.txt
+      rm test3.txt
+  displayName: Checking Imgae Tag 
+
+# To check the rollout status
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      kubectl get deploy --output name -n $(NAMESPACE) | \
+        xargs -n1 -t \
+          timeout 60s kubectl rollout status -n $(NAMESPACE) | grep "successfully rolled out" || exit 1
+  displayName: Rollout Status
+
+# -------------------

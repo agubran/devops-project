@@ -1,0 +1,87 @@
+parameters:
+# ------------ Performance Testing Parameters ------------------
+  - name: PerformanceTestScript
+    default: Mazad_ShiftLeft_V1.js
+  - name: KibanaResultLink
+    default: http://172.25.11.30:5601/s/dev/app/apm#/services/moj-emazad/transactions?kuery=service.name%253A%2522moj-emazad%2522&rangeFrom=now-1y&rangeTo=now&refreshInterval=0&refreshPaused=true&transactionType=request
+# --------------------------------
+  - name: Perf_Home # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80
+      Tap: HomePage
+  - name: Perf_Auctions # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/home/auctions
+      Tap: AuctionsPage
+  - name: Perf_FAQ # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/home/faq
+      Tap: FAQPage
+  - name: Perf_AboutUs # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/home/aboutus
+      Tap: AboutUsPage
+  - name: Perf_ContactUs # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/home/contactus
+      Tap: ContactUsPage
+  - name: Perf_BiddingDetails # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/home/bidding/avMpxMLzNQWhII2lJdrsjw%3D%3D
+      Tap: BiddingDetailsPage
+  - name: Perf_Search # Should be starts with Perf_ Then the desired name 
+    type: object
+    default:
+      Link: http://mazad-web-test.thiqah.sa:80/auctions
+      Tap: SearchPage
+# -----------------------------------
+
+steps:
+- checkout: Performance  #name of the config repo
+  persistCredentials: true
+# Go Tool
+- task: GoTool@0
+
+# Run K6
+- script: 'k6 run ${{ parameters.PerformanceTestScript }}'
+  displayName: Run K6 
+
+# Publish Test Result        
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'JUnit'
+    testResultsFiles: '/home/qcadmin/Shift_Left_Performance_Test_Result/MazadProject_junitK6.xml'
+    mergeTestResults: true
+    testRunTitle: 'K6 Test Result'
+    publishRunAttachments: true
+  condition: succeededOrFailed()
+
+# Kibana Result
+- task: CmdLine@2
+  displayName: Kibana Result 
+  inputs:
+    script: 'echo ${{ parameters.KibanaResultLink }}'
+    failOnStderr: false
+  condition: succeededOrFailed()
+
+# Node Tool
+- task: NodeTool@0
+  inputs:
+    versionSpec: '14.x'
+  condition: succeededOrFailed()
+
+- ${{ each parameter in parameters }}:
+  - ${{ if startsWith(parameter.Key, 'Perf_') }}:
+    - task: Lighthouse@1
+      inputs:
+        url: '${{ parameter.Value.Link }}'
+        args: '--max-wait-for-load=160000'
+        tabName: '${{ parameter.Value.Tap }}'
+      condition: succeededOrFailed() 
+      displayName: '${{ parameter.Key }}'

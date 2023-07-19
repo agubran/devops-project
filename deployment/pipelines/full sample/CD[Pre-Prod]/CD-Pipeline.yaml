@@ -1,0 +1,666 @@
+resources:
+  repositories:
+    # config repository
+    - repository: Config # The name used to reference this repository in the checkout step
+      type: git
+      name: "REGA Real Estate Brokers Platform MVP/Config"
+      trigger:
+        - hotfix/*
+    # QC repository
+    - repository: QC
+      type: git
+      name: "REGA Real Estate Brokers Platform MVP/Config"
+  # # Performance repository ( JMeter)
+  # - repository: Performance
+  #   type: git
+  #   name: 'REGA Real Estate Brokers Platform MVP/Config'
+
+trigger: none
+
+pool:
+  name: ps-agents-linux
+
+variables:
+  - template: variables.yaml
+  - template: components.yaml
+
+stages:
+  # CD
+  - stage: PreProd_Deployment
+    # QC Approval
+    jobs:
+      - job: wait_for_QC_Approval
+        displayName: Wait for QC approval to go PreProd.
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(QCNotifyUsers)
+              instructions: "Please approve to go PreProd once tests completed"
+      #DB Prepration
+      - job: "PreProd_DB_DifferenceScript"
+        condition: eq(variables.Deploy_DB,'true')
+        dependsOn: wait_for_QC_Approval
+        displayName: "Preprod DB difference script"
+        pool:
+          name: PS-DatabaseReleaseAgents
+          demands:
+            - ${{ variables.DB_Agent_capabilityName }} -equals true
+        steps:
+          - template: steps/differenceDBScript.yaml
+            parameters:
+              DefitionID: ${{ variables.DB_Bulid_DefitionID }}
+              buildID: ${{ variables.DB_Bulid_buildID }}
+              dacpacName: ${{ variables.DB_dacpacName }}
+              publishProfile: ${{ variables.DB_publishProfile }}
+              DeveloperEmail: ${{ variables.DB_DeveloperEmail }}
+              ServerName: ${{ variables.PreProd_ServerName }}
+              DBName: ${{ variables.PreProd_DBName }}
+              DBA_ApproverEmail: ${{ variables.DBNotifyUsers }}
+              ApprovalJobName: PreProd_Wait_for_DBA_Approval
+              Notes: ""
+      # Wait for DB Team Approval
+      - job: PreProd_Wait_for_DBA_Approval
+        condition: and(eq(variables.Deploy_DB,'true') , succeeded())
+        dependsOn: PreProd_DB_DifferenceScript
+        displayName: PreProd Wait for DB Approval
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(DBNotifyUsers)
+              instructions: "Please review database difference script and resume"
+
+      # PR into PreProd
+      - job: "PreProd_PR"
+        displayName: "PR into preprod, add updated manifests"
+        condition: and ( succeeded('wait_for_QC_Approval'), or ( eq(variables.Deploy_DB,'false'), succeeded()) )
+        dependsOn: ["PreProd_Wait_for_DBA_Approval", "wait_for_QC_Approval"]
+        #pool:
+        #  name: $(PrivatePool) # Linux agent details
+        #  demands:
+        #  - ${{ variables. }} -equals true
+        variables:
+          #- name: SOURCE_BRANCH
+          #  value: Test
+          - name: TARGET_BRANCH
+            value: Preprod
+          - name: Reviewers
+            value: $(Reviewers) # you can add mmany reviewers, sperate them by space
+        # if you have keys that are not secrets and need it to be replaced with values,
+        # then uncomment here add your variable group name
+        #      - group: nameOfTheGroup
+        # The files that contains keys to be replaced
+        #      - name: targetFiles
+        #      - value: path/to/files/*.yaml
+        # Don't forget to uncomment the task itself in pre-pre.yaml
+        steps:
+          - template: steps/pr-pre.yaml
+            parameters:
+              MANIFEST_DIR: $(MANIFEST_DIR)
+
+      # Wait for PR Approval
+      - job: wait_for_PreProd_PR_Approval
+        displayName: resume or reject after you (complete or reject the pull request)
+        dependsOn: "PreProd_PR"
+        condition: succeeded('PreProd_PR')
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(PRNotifyUsers)
+              instructions: "Please review my PR and resume"
+
+      # Apply Maintenance Page
+      - job: "PreProd_maintenancePage"
+        condition: and(eq(variables.maintenancePage,'true'), succeeded('wait_for_PreProd_PR_Approval'))
+        dependsOn: "wait_for_PreProd_PR_Approval"
+        #pool: PS-AgentPool
+        displayName: "PreProd maintenance Page"
+        steps:
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/set-maintenance.yaml
+                parameters:
+                  kubernetesServiceEndpoint: ${{ variables.kubernetesServiceEndpointPreWEB }}
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/set-maintenance.yaml
+                parameters:
+                  kubernetesServiceEndpoint: ${{ variables.kubernetesServiceEndpointPreAPP }}
+
+      # Delay
+      - job: PreProd_WaitFormaintenancePage
+        #condition: eq(variables.maintenancePage,'true')
+        displayName: Wait for maintenance page deploy
+        pool: Server
+        dependsOn: "PreProd_maintenancePage"
+        condition: and(eq(variables.maintenancePage,'true'), succeeded('PreProd_maintenancePage'))
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "1"
+
+      # DB Execution
+      - job: "PreProd_DB_ExecuteScript"
+        condition: and (eq(variables.Deploy_DB,'true'), succeeded('PreProd_Wait_for_DBA_Approval'), or(eq(variables.maintenancePage,'false'), succeeded('PreProd_WaitFormaintenancePage')) )
+        displayName: "Execute DB Script into preprod"
+        dependsOn:
+          ["PreProd_WaitFormaintenancePage", "PreProd_Wait_for_DBA_Approval"]
+        pool:
+          name: PS-DatabaseReleaseAgents
+          demands:
+            - ${{ variables.DB_Agent_capabilityName }} -equals true
+        steps:
+          - template: steps/executeDBScript.yaml
+            parameters:
+              DefitionID: ${{ variables.DB_Bulid_DefitionID }}
+              buildID: ${{ variables.DB_Bulid_buildID }}
+              dacpacName: ${{ variables.DB_dacpacName }}
+              publishProfile: ${{ variables.DB_publishProfile }}
+              ServerName: ${{ variables.PreProd_ServerName }}
+              DBName: ${{ variables.PreProd_DBName }}
+
+      # Pre Deployment
+      - job: "PreProd_Deployment"
+        #    pool:
+        #      name: PS-AgentPool
+        displayName: "PreProd Deployment"
+        dependsOn: ["PreProd_DB_ExecuteScript", "wait_for_PreProd_PR_Approval"]
+        condition: or (succeeded('PreProd_DB_ExecuteScript') , and(eq(variables.Deploy_DB,'false'), succeeded('wait_for_PreProd_PR_Approval')) )
+        variables:
+          - group: ${{ variables.ArgoVarsGroupName }}
+        steps:
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/argocd-sync.yaml
+                parameters:
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreAPP)
+                  ArgocdAppName: $(argocdAppName_PreApp)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/argocd-sync.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_PreWeb)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreWEB)
+
+      # Delay
+      - job: Delay
+        pool: Server
+        dependsOn: "PreProd_Deployment"
+        condition: succeeded('PreProd_Deployment')
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "3"
+
+      # Deployment Status
+      # If it HelmChart
+      - job: "deployment_status"
+        #pool: $(PrivatePool)
+        displayName: "Deployment Status"
+        dependsOn: "Delay"
+        condition: succeeded('Delay')
+        # continueOnError: true
+        steps:
+          # If it helmChart
+          - ${{ if eq(variables['IsHelmChart'], 'true') }}:
+              - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreAPP)
+                      currentEnv: Preprod
+              - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreWEB)
+                      currentEnv: Preprod
+          # If it plain YAML
+          - ${{ if eq(variables['IsPlainYaml'], 'true') }}:
+              - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreAPP)
+                      currentEnv: Preprod
+              - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointPreWEB)
+                      currentEnv: Preprod
+
+      - job: ManualValidation_Befor_RollBack
+        dependsOn: "deployment_status"
+        condition: and(ne(succeeded('deployment_status'), True), succeeded('wait_for_QC_Approval'))
+        displayName: Resume if you want to rollback
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 4320 # task times out in 3 day
+            inputs:
+              notifyUsers: |
+                $(RollbackNotifyUsers)
+              instructions: "If you need to rollback, resume, otherwise reject"
+
+      - job: "Rollback"
+        displayName: "Rollback"
+        dependsOn: ["deployment_status", "ManualValidation_Befor_RollBack"]
+        condition: and (ne(succeeded('deployment_status'), True), succeeded('ManualValidation_Befor_RollBack'))
+        variables:
+          - group: ${{ variables.ArgoVarsGroupName }}
+        steps:
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/rollback.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_PreApp)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/rollback.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_PreWeb)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+
+      # Generate Release Note
+      - job: "release_note"
+        displayName: "Generate Release Note"
+        dependsOn: ["deployment_status", "ManualValidation_Befor_RollBack"]
+        condition: and(succeeded('deployment_status'), failed('ManualValidation_Befor_RollBack'))
+        steps:
+          - template: steps/release-note.yaml
+
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ###################       Testing Preprod      #####################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+
+  # - stage: Preprod_Tests
+  #   jobs:
+  #     # Running QC Test
+  #   - job: "qa_automated_tests"
+  #     displayName: "QA automated tests"
+  #     pool:
+  #       name: AutomationTestAgentPool
+  #     condition: eq(variables.RunQCTest, 'true')
+  #     variables:
+  #       - group: ${{ variables.QCVarsGroupName }}
+  #     continueOnError: true
+  #     steps:
+  #     - ${{ if eq(variables['ApiQCTest'], 'true') }}:
+  #       - template: steps/QC-API-automated-tests.yaml
+  #         parameters:
+  #           QCSecureFile: $(QCSecureFileName)
+  #     - ${{ if eq(variables['UIQCTest'], 'true') }}:
+  #       - template: steps/QC-UI-automated-tests.yaml
+
+  #     # In case the pen testing needs manual validation, uncomment the upcoming job.
+  #   - job: waitForValidation_QC
+  #     displayName: Wait for external validation
+  #     pool: server
+  #     dependsOn: "qa_automated_tests"
+  #     timeoutInMinutes: 4320 # job times out in 3 days
+  #     steps:
+  #     - task: ManualValidation@0
+  #       timeoutInMinutes: 4320 # task times out in 3 day
+  #       inputs:
+  #         notifyUsers: |
+  #           $(QCNotifyUsers)
+  #         instructions: 'Please validate the result of the tests and resume'
+
+  #     # Penetration Testing
+  #   - job: "Pen_Testing"
+  #     displayName: " Penetration testing"
+  #     pool:
+  #       name: Default
+  #     condition: and(eq(variables.isPenAutomated, 'true'), eq(variables.RunPentTest, 'true'))
+  #     continueOnError: true
+  #     steps:
+  #       - template: steps/penetration-testing.yaml
+  #         parameters:
+  #           scanWebSites: $(PenscanWebSites)
+  #           scanWebSitesProfile: $(PenscanWebSitesProfile)
+  #     # In case the pen testing needs manual validation, uncomment the upcoming job.
+  #   - job: waitForValidation_Pen
+  #     displayName: Wait for external validation
+  #     pool: server
+  #     dependsOn: "Pen_Testing"
+  #     timeoutInMinutes: 4320 # job times out in 3 days
+  #     steps:
+  #     - task: ManualValidation@0
+  #       timeoutInMinutes: 4320 # task times out in 3 day
+  #       inputs:
+  #         notifyUsers: |
+  #           $(PentNotifyUsers)
+  #         instructions: 'Please validate the result of the tests and resume'
+
+  #   # Performance Testing
+  # - job: "Performance_testing"
+  #   displayName: "Performance testing"
+  #   pool:
+  #     name: PerformanceTestAgents
+  #   variables:
+  #     - group: ${{ variables.PerfVarsGroupName }}
+  #     - group: ${{ variables.Perf2VarsGroupName }}
+  #   condition: and(eq(variables.isPerfJMeterAutomated, 'true'), eq(variables.RunPerfTest, 'true'))
+  #   continueOnError: true
+  #   steps:
+  #     - template: steps/Performance-testing.yaml
+
+  #   # In case the performance needs manual validation, uncomment the upcoming job.
+  # - job: waitForValidation_Pref
+  #   displayName: Wait for external validation
+  #   pool: server
+  #   dependsOn: "Performance_testing"
+  #   timeoutInMinutes: 4320 # job times out in 3 days
+  #   steps:
+  #   - task: ManualValidation@0
+  #     timeoutInMinutes: 4320 # task times out in 3 day
+  #     inputs:
+  #       notifyUsers: |
+  #         $(PerfNotifyUsers)
+  #       instructions: 'Please validate the result of the tests and resume'
+
+  # Done with the Preprod env
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ###################      TO  Production        #####################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+  ####################################################################
+
+  - stage: Production_Deployment
+    # condition: always()  # for test to be run if we reject the preprod pipeline
+    jobs:
+      - job: MoveToProduction_QC_Approval
+        displayName: Wait for QC approval to go production.
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(QCNotifyUsers)
+              instructions: "Please approve to go production once tests completed"
+
+      - job: "Production_DB_DifferenceScript"
+        condition: eq(variables.Deploy_DB,'true')
+        displayName: "Production DB Difference Script"
+        dependsOn: MoveToProduction_QC_Approval
+        pool:
+          name: PS-DatabaseReleaseAgents
+          demands:
+            - ${{ variables.DB_Agent_capabilityName }} -equals true
+        steps:
+          - template: steps/differenceDBScript.yaml
+            parameters:
+              DefitionID: ${{ variables.DB_Bulid_DefitionID }}
+              buildID: ${{ variables.DB_Bulid_buildID }}
+              dacpacName: ${{ variables.DB_dacpacName}}
+              publishProfile: ${{ variables.DB_publishProfile }}
+              DeveloperEmail: ${{ variables.DB_DeveloperEmail }}
+              ServerName: ${{ variables.Production_ServerName }}
+              DBName: ${{ variables.Production_DBName}}
+              DBA_ApproverEmail: ${{ variables.DBNotifyUsers }}
+              ApprovalJobName: Production_DBA_Approval
+              Notes: ""
+
+      - job: Production_DBA_Approval
+        condition: and ( succeeded() , eq(variables.Deploy_DB,'true'))
+        displayName: Wait for DB approval on production
+        dependsOn: "Production_DB_DifferenceScript"
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(DBNotifyUsers)
+              instructions: "Please review database difference script and resume"
+
+      - job: "Prod_PR"
+        displayName: "PR into prod, add updated manifests"
+        dependsOn: ["Production_DBA_Approval", "MoveToProduction_QC_Approval"]
+        condition: and ( succeeded('MoveToProduction_QC_Approval'), or ( eq(variables.Deploy_DB,'false'), succeeded()) )
+        variables:
+          #- name: SOURCE_BRANCH
+          #  value: preprod
+          - name: TARGET_BRANCH
+            value: Production
+          - name: Reviewers
+            value: $(Reviewers) # you can add mmany reviewers, sperate them by space
+          # if you have keys that are not secrets and need it to be replaced with values,
+          # then add your variable group name
+          #      - group: nameOfTheGroup
+          # The files that contains keys to be replaced
+          #      - name: targetFiles
+          #      - value: path/to/files/*.yaml
+        steps:
+          - template: steps/pr-prod.yaml
+
+      - job: wait_for_Prod_PR_Approval
+        displayName: resume or reject after you (complete or reject the pull request)
+        pool: server
+        dependsOn: Prod_PR
+        condition: succeeded('Prod_PR')
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 1440 # task times out in 1 day
+            inputs:
+              notifyUsers: |
+                $(PRNotifyUsers)
+              instructions: "Please review my PR and resume"
+      # Done with the PR
+
+      - job: "Production_maintenancePage"
+        #pool: PS-AgentPool
+        displayName: "Production maintenance Page"
+        condition: and(eq(variables.maintenancePage,'true'), succeeded('wait_for_Prod_PR_Approval'))
+        dependsOn: "wait_for_Prod_PR_Approval"
+        steps:
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/set-maintenance.yaml
+                parameters:
+                  kubernetesServiceEndpoint: ${{ variables.kubernetesServiceEndpointProdWEB }}
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/set-maintenance.yaml
+                parameters:
+                  kubernetesServiceEndpoint: ${{ variables.kubernetesServiceEndpointProdAPP }}
+
+      - job: WaitForProduction_maintenancePage
+        displayName: Wait for maintenance page deploy
+        pool: Server
+        dependsOn: "Production_maintenancePage"
+        condition: succeeded('Production_maintenancePage')
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "1"
+
+      - job: "Production_DB_ExecuteScript"
+        displayName: "Execute DB Script into Production"
+        condition: and ( eq(variables.Deploy_DB,'true'), succeeded('Production_DBA_Approval') , or ( eq(variables.maintenancePage,'false'), succeeded('WaitForProduction_maintenancePage')) )
+        dependsOn:
+          ["WaitForProduction_maintenancePage", "Production_DBA_Approval"]
+        pool:
+          name: PS-DatabaseReleaseAgents
+          demands:
+            - ${{ variables.DB_Agent_capabilityName }} -equals true
+        steps:
+          - template: steps/executeDBScript.yaml
+            parameters:
+              DefitionID: ${{ variables.DB_Bulid_DefitionID }}
+              buildID: ${{ variables.DB_Bulid_buildID }}
+              dacpacName: ${{ variables.DB_dacpacName }}
+              publishProfile: ${{ variables.DB_publishProfile }}
+              ServerName: ${{ variables.Production_ServerName }}
+              DBName: ${{ variables.Production_DBName }}
+
+      - job: "Production_Deployment"
+        #pool: PS-AgentPool
+        displayName: "Production Deployment"
+        dependsOn: ["Production_DB_ExecuteScript", "wait_for_Prod_PR_Approval"]
+        condition: or(succeeded('Production_DB_ExecuteScript') , and(eq(variables.Deploy_DB,'false'), succeeded('wait_for_Prod_PR_Approval')) )
+        variables:
+          - group: ${{ variables.ArgoVarsGroupName }}
+        steps:
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/argocd-sync.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_ProdApp)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdAPP)
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/argocd-sync.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_ProdWeb)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdWEB)
+
+      - job: Delay
+        pool: Server
+        dependsOn: "Production_Deployment"
+        condition: succeeded('Production_Deployment')
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "3"
+
+        # If it HelmChart
+      - job: "deployment_status"
+        #pool: $(PrivatePool)
+        displayName: "Deployment Status"
+        dependsOn: "Delay"
+        condition: succeeded('Delay')
+        steps:
+          # If it helmChart
+          - ${{ if eq(variables['IsHelmChart'], 'true') }}:
+              - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdAPP)
+                      currentEnv: Production
+              - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdWEB)
+                      currentEnv: Production
+          # If it plain YAML
+          - ${{ if eq(variables['IsPlainYaml'], 'true') }}:
+              - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdAPP)
+                      currentEnv: Production
+              - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+                  - template: steps/deployment-feedback.yaml
+                    parameters:
+                      kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdWEB)
+                      currentEnv: Production
+
+        # If there is a problem, RollBack
+        # if there is a need to rollback, then refer to the rollback page (https://dev.azure.com/ThiqahDev/Platform/_wiki/wikis/Platform.wiki/259/GitOps-Rollback),
+        # Otherwise, resume the pipeline
+
+      - job: ManualValidation_Befor_RollBack
+        dependsOn: "deployment_status"
+        condition: and(ne(succeeded('deployment_status'), True), succeeded('wait_for_QC_Approval'))
+        displayName: Resume if you want to rollback
+        pool: server
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - task: ManualValidation@0
+            timeoutInMinutes: 4320 # task times out in 3 day
+            inputs:
+              notifyUsers: |
+                $(RollbackNotifyUsers)
+              instructions: "If you need to rollback, resume, otherwise reject"
+
+      - job: "Rollback"
+        displayName: "Rollback"
+        dependsOn: ["deployment_status", "ManualValidation_Befor_RollBack"]
+        condition: and (ne(succeeded('deployment_status'), True), succeeded('ManualValidation_Befor_RollBack'))
+        variables:
+          - group: ${{ variables.ArgoVarsGroupName }}
+        steps:
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/rollback.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_ProdApp)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/rollback.yaml
+                parameters:
+                  ArgocdAppName: $(argocdAppName_ProdWeb)
+                  argocdUserName: $(UserName)
+                  argocdPassword: $(Password)
+                  ArgocdAppAddrs: $(ArgocdAppAddrs)
+
+  # Image lock, and unlock the previous prod image
+  - stage: Prod_IMAGE_lock
+    condition: not(ne(failed('Production_Deployment'), True))
+    jobs:
+      # Lock the image
+      - job: "image_lock"
+        displayName: "Push to prod repo and, Lock the Container Image"
+        variables:
+          - group: ${{ variables.GloVarsGroupName }}
+        steps:
+          - ${{ if eq(variables['UseAppCluster'], 'true') }}:
+              - template: steps/image-lock.yaml
+                parameters:
+                  #acr: $(acr)
+                  #repository: $(repository)
+                  serviceprincipalUsername: $(acr-scan-username)
+                  serviceprincipalPassword: $(acr-scan-password)
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdAPP)
+          - ${{ if eq(variables['UseWebCluster'], 'true') }}:
+              - template: steps/image-lock.yaml
+                parameters:
+                  #acr: $(acr)
+                  #repository: $(repository)
+                  serviceprincipalUsername: $(acr-scan-username)
+                  serviceprincipalPassword: $(acr-scan-password)
+                  kubernetesServiceEndpoint: $(kubernetesServiceEndpointProdWEB)

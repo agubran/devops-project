@@ -1,0 +1,54 @@
+parameters:
+  - name: kubernetesServiceEndpoint # kubernetes Service Endpoint
+    type: string
+
+
+steps:
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+# Set Maintenance Page
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      #kubectl set image -n $(NAMESPACE) deployments,rc *=$(MaintenancePageImage) --all 
+      #deploy=$(kubectl get deploy -o name -n $(NAMESPACE) | sed 's/deployment.apps\///g')
+      #for i in $deploy; do kubectl scale deploy $i --replicas=0 -n $(NAMESPACE)  | grep "scaled" || exit 1; done
+      #kubectl scale deploy $(maintenancePageDeployName) --replicas=1 -n $(NAMESPACE)
+      svc=$(kubectl get svc -o name -n $(NAMESPACE) | sed 's/service\///g')
+      #for i in $svc; do kubectl label svc $i $(maintenancePageLabel) --overwrite -n $(NAMESPACE) | grep "labeled" || exit 1; done
+      for i in $svc; do \
+      kubectl set selector service $i -n $(NAMESPACE) '$(maintenancePageLabel)' | grep "service/$i selector updated" || exit 1 &&\
+        kubectl get svc $i -o yaml -n $(NAMESPACE) > svc.yaml &&\
+          sed -i 's/targetPort:.*/targetPort:\ $(maintenancePagePort)/g' svc.yaml &&\
+            kubectl patch -n $(NAMESPACE) service $i -p "$(cat svc.yaml)"; \
+              done
+      #for i in $svc; do kubectl patch -n $(NAMESPACE) service $i -p "{\"spec\":{\"ports:\":{$(maintenancePagePort)}}}" | grep "$i patched" || exit 1; done
+      #kubectl label svc -n $(NAMESPACE) --all $(maintenancePageLabel) --overwrite | grep "labeled" || exit 1
+#      for i in $svc; do \
+#        if [[ "$(kubectl get svc $i --show-labels -n $(NAMESPACE))" == "$(maintenancePageLabel)" ]]
+#        then
+#          echo "labeled"
+#        else 
+#          echo "not labeled"
+#          exit 1
+#        fi;
+#        done
+  displayName: Set Maintenance Page  
+
+#- task: Bash@3
+#  inputs:
+#    targetType: 'inline'
+#    script: |
+      #kubectl get deploy --output name -n $(NAMESPACE) | \
+      #  xargs -n1 -t \
+      #    timeout 60s kubectl rollout status -n $(NAMESPACE) | grep "successfully rolled out" || exit 1
+#      svc=$(kubectl get svc -o name -n $(NAMESPACE) | sed 's/service\///g')
+#      for i in $svc; do if [[ "$(kubectl get svc $i --show-labels -n $(NAMESPACE))" == $(maintenancePageLabel) ]] then echo "labeled" else echo "not labeled " exit 1 fi; done  then
+#  displayName: Rollout Status

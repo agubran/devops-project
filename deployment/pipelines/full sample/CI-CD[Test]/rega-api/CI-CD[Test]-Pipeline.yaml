@@ -1,0 +1,341 @@
+resources:
+  repositories:
+    # confiq repository
+    - repository: Config # The name used to reference this repository in the checkout step
+      type: git
+      name: "REGA Real Estate Brokers Platform MVP/Config"
+    # App repository
+    - repository: App_Repo
+      type: git
+      name: "REGA Real Estate Brokers Platform MVP/REGA_Backend"
+      ref: "refs/heads/oldScope"
+      # trigger:  # CI trigger for this repository, no CI trigger if skipped (only works for Azure Repos)
+      #   branches:
+      #     include:
+      #     - build/*
+      #     - release/*
+      #     - hotfix/*
+      #     - azurepipeline_2
+  # QC repository
+
+  ################################## Stop by Abdurabu Gubran ########################
+  # - repository: QC
+  #   type: git
+  #   name: 'REGA Real Estate Brokers Platform MVP/REGA_Backend/REGA_QC_Automation'
+  # # Performance repository (K6)
+  # - repository: Performance
+  #   type: git
+  #   name: 'REGA Real Estate Brokers Platform MVP/REGA_ShiftLeftPerformanceTest'
+
+trigger:
+  - none
+#  branches:
+#    include:
+#    - build/*
+#    - release/*
+#    - hotfix/*
+#  paths:
+#    include:
+#    - '*' # root dir
+#    exclude:
+#    - README.md  
+pool:
+  # vmImage: ubuntu-latest
+  #name: BuildAgents_Linux
+  name: VMSS_AGENTS_LINUX
+
+variables:
+  - name: AppRepoBranch
+    value: $[ resources.repositories['App_Repo'].ref ]
+  - template: variables.yaml
+
+# The format of the image tag
+name: v$(version.major).$(version.minor)$(rev:.r)
+
+stages:
+  # CI
+  - stage: Build
+    jobs:
+      - job: BuildPreparation
+        displayName: Build Preparation
+        pool:
+          vmImage: windows-2019
+        timeoutInMinutes: 4320 # job times out in 3 days
+        steps:
+          - template: ../steps-of-ci/build-preparation.yaml
+      # Build Dacpac
+      - job: "Build_DB"
+        displayName: "Build DacPac"
+        condition: eq(variables.Deploy_DB, 'true')
+        pool:
+          name: Default
+        steps:
+          - template: ../steps-of-ci/build-DB.yaml
+            parameters:
+              DBsolution: $(DBsolution)
+              msbuildArgs: $(msbuildArgs)
+              BuildPlatform: $(BuildPlatform)
+              BuildConfiguration: $(BuildConfiguration)
+              SourceFoldertoCopy: $(SourceFoldertoCopy)
+
+      # Pen Testing (SAST)
+      - job: "Pen_Testing_SAST"
+        displayName: "Pen Testing SAST"
+        dependsOn: "BuildPreparation"
+        condition: eq(variables.RunSastTest, 'true')
+        pool:
+          name: Default
+        continueOnError: true
+        steps:
+        - ${{ if eq(variables['IsDotNet'], 'false') }}:
+          - template: ../steps-of-ci/penetration-testing-web.yaml
+            parameters:
+              scannerMode: CLI
+              configMode: manual
+              SonarQubeProjectKey: "$(SonarQubeProjectKey)"
+              SonarQubeProjectName: "$(SonarQubeProjectName)"
+        - ${{ if eq(variables['IsDotNet'], 'true') }}:
+          - template: ../steps-of-ci/penetration-testing.yaml
+            parameters:
+              SonarQubeServiceConnection: $(SonarQubeServiceConnection)
+              DepCheckProjectName: $(DepCheckProjectName)
+              nugetConfigPath: $(nugetConfigPath)
+              SonarQubeProjectKey: $(SonarQubeProjectKey)
+              SonarQubeProjectName: $(SonarQubeProjectName)
+
+      # App Build, and Test
+      - job: "Build_And_UnitTest_App"
+        displayName: "Run app's unit tests"
+        condition: and(eq(variables.IsDotNet, 'true'), eq(variables.RunUnitTest, 'true'))
+        pool:
+          name: Default
+        steps:
+          - template: ../steps-of-ci/Build-UnitTest-App.yaml
+            parameters:
+              project: $(projectPath)
+              testProject: $(testProject)
+              APP_REPO_DIR: $(APP_REPO_DIR)
+
+      # App Sonarqube Test
+      - job: "Code_Quality_Check"
+        displayName: "Code Quality Check"
+        dependsOn: "Build_And_UnitTest_App"
+        condition: and(always(), eq(variables.RunSonarQube, 'true'))
+        steps:
+          - template: ../steps-of-ci/sonarQube-check.yaml # to be moved
+
+      # Docker Build, Scan, and Push.
+      - job: "Build_Image"
+        displayName: "Build, Scan and Push the App Image"
+        condition: always()
+        dependsOn: ["BuildPreparation", "Code_Quality_Check"]
+        variables:
+          # a variable group
+          - group: ${{ variables.GloVarsGroupName }}
+          # Needs to token details: token name as username and password(token value)
+        steps:
+          - template: ../steps-of-ci/container-image.yaml
+            parameters:
+              sourceLocation: $(sourceLocation)
+              buildcontext: $(buildcontext)
+              dockerFile: $(dockerFile)
+              acr: $(acr)
+              repository: scan/$(PROGRAM_NAME)/$(PRODUCT_NAME)/$(REPO_NAME) # Push to tmp repo starts with scan/
+              taskname: "build_image"
+              tokename: $(acr-project-username)
+              tokenPassword: $(acr-project-password)
+              APP_REPO_DIR: $(APP_REPO_DIR)
+
+      # Wait for Scanning Result
+      - job: WaitForScanResults
+        displayName: Wait for Scan result
+        pool: Server
+        dependsOn: "Build_Image"
+        condition: succeeded('Build_Image')
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "3"
+
+      # Get the scan result
+      - job: ImageScanGate
+        displayName: Image Scan security gate
+        condition: succeeded('WaitForScanResults')
+        pool:
+          # vmImage: "windows-latest"
+          name: VMSS_BUILDAGENTS_WINDOWS
+        variables:
+          - group: ${{ variables.GloVarsGroupName }}
+          # Needs to azure service principa details: username, password and tenantID
+        dependsOn: WaitForScanResults
+        continueOnError: true
+        steps:
+          - template: ../steps-of-ci/scan-result.yaml
+            parameters:
+              acr: $(acr)
+              ScanRepo: scan/$(PROGRAM_NAME)/$(PRODUCT_NAME)/$(REPO_NAME) # pull the result from the tmp repo scan/**/**
+              AssessmentPath: $(AssessmentPath) # Path to the script
+              serviceprincipalUsername: $(acr-scan-username)
+              serviceprincipalPassword: $(acr-scan-password)
+              acrTenant: $(acr-tenant)
+
+      # Sign and push the healthy image
+      - job: ImageSignAndPush
+        displayName: Image pushing and signing
+        variables:
+          - group: ${{ variables.GloVarsGroupName }}
+          - group: ${{ variables.CuzVarsGroupName }}
+          # Needs to azure service principa details: username, password and tenantID
+          # Needs to passphrase of the repo key to sign the image
+        dependsOn: ImageScanGate
+        condition: succeeded('ImageScanGate')
+        steps:
+          - template: ../steps-of-ci/image-sign.yaml
+            parameters:
+              sourceLocation: $(sourceLocation)
+              buildcontext: $(buildcontext)
+              dockerFile: $(dockerFile)
+              acr: $(acr)
+              repository: $(PROGRAM_NAME)/$(PRODUCT_NAME)/$(REPO_NAME) # image origin repo
+              tag: $(IMAGETAG)
+              signingKeyFile: $(signingKeyFile)
+              keyVarName: $(keyVarName)
+              serviceprincipalUsername: $(acr-scan-username)
+              serviceprincipalPassword: $(acr-scan-password)
+        #continueOnError: true
+
+      # Scan the manifests
+      - job: "Manifests_Scanning"
+        displayName: "Manifests Scanning"
+        condition: succeeded('Build_Image')
+        dependsOn: "Build_Image"
+        steps:
+          # If it helmChart
+          - ${{ if eq(variables['IsHelmChart'], 'true') }}:
+              - template: ../steps-of-ci/manifests-scanning.yaml
+          # If it plain YAML
+          - ${{ if eq(variables['IsPlainYaml'], 'true') }}:
+              - template: ../steps-of-ci/manifests-scanning-yaml.yaml
+        continueOnError: true
+
+    # Done with the CI process.
+
+  # GitOps PR
+  - stage: GitOps_PR
+    jobs:
+      - job: "Adding_Updated_Manifests"
+        displayName: "Adding Updated Manifests"
+        steps:
+          - template: ../steps-of-cd/manifest-push.yaml
+            parameters:
+              REPO_URL: $(REPO_URL) # GitOps Repo
+              MANIFEST_DIR: $(MANIFEST_DIR) # Manifest in the GitOps Repo
+              SourceManifestPath: $(SourceManifestPath) # Path to the Service Manifest in the App Repo
+              DestManifestPath: $(DestManifestPath)
+              PROGRAM_NAME: $(PROGRAM_NAME)
+              PRODUCT_NAME: $(PRODUCT_NAME)
+              REPO_NAME: $(REPO_NAME) # ACR Repo Name
+              ImageTagFile: $(ImageTagFile) # The yaml that Contains the image tag value which needs to be updated
+
+      # Pull request into gitops config Test
+      - job: "Pr_Test"
+        dependsOn: "Adding_Updated_Manifests"
+        displayName: "Pr into Test"
+        # Identifying variables, job level.
+        variables:
+          - name: TARGET_BRANCH
+            value: Test
+        steps:
+          - template: ../steps-of-cd/pr-test.yaml
+
+    # After review and take action, you need to make a click here based on that action.
+
+    #- job: wait_for_PR_Approval
+    #  displayName: Wait for external review based on pr status whether contuniue or exit the pipeline.
+    #  dependsOn: "Pr_Test"
+    #  pool: server
+    #  timeoutInMinutes: 4320 # job times out in 3 days
+    #  steps:
+    #  - task: ManualValidation@0
+    #    timeoutInMinutes: 1440 # task times out in 1 day
+    #    inputs:
+    #      notifyUsers: |
+    #        test@test.com
+    #        example@example.com
+    #      instructions: 'Please review my PR and resume'
+
+    # The GitOps PR is Done
+
+  # CD Satge, Test env
+  - stage: QA
+    # DB Script Execution
+    jobs:
+      - job: "DB_ExecuteScript"
+        condition: and(eq(variables.databaseScript,'true'), eq(variables.Deploy_DB, 'true'))
+        displayName: "Execute DB Script"
+        pool:
+          name: Default
+        steps:
+          - template: ../steps-of-cd/executeDBScript.yaml
+            parameters:
+              dacpacName: ${{ variables.DB_dacpacName }}
+              publishProfile: ${{ variables.DB_publishProfile }}
+              ConnectionString: ${{ variables.ConnectionString }}
+
+      # Delay for 3 minutes, waiting GitOps Operator to sync the changes.
+      - job: Delay
+        pool: Server
+        steps:
+          - task: Delay@1
+            inputs:
+              delayForMinutes: "3"
+          # Need Extra Time to Get the Deployment Status ?
+          - task: Delay@1
+            condition: eq(variables.extraTimeToGetResult,'true')
+            inputs:
+              delayForMinutes: "2"
+
+      # Getting deployment Status
+      - job: "deployment_status"
+        displayName: "Deployment Status"
+        dependsOn: "Delay"
+        steps:
+          - template: ../steps-of-cd/deployment-feedback.yaml
+            parameters:
+              kubernetesServiceEndpoint: $(kubernetesServiceEndpointTest)
+
+      # Generate Release Note
+      - job: "release_note"
+        displayName: "Generate Release Note"
+        dependsOn: "deployment_status"
+        steps:
+          - template: ../steps-of-cd/release-note.yaml
+######################################## Stop by Abdurabu Gubran ############################
+# Running QC Test
+# - job: "qa_automated_tests"
+#   displayName: "QA automated tests"
+#   pool:
+#     name: AutomationTestAgentPool
+#   condition: eq(variables.RunQCTest, 'true')
+#   dependsOn: "deployment_status"
+#   variables:
+#     - group: ${{ variables.QCVarsGroupName }}
+#   continueOnError: true
+#   steps:
+#   - ${{ if eq(variables['ApiQCTest'], 'true') }}:
+#     - template: ../steps-of-cd/QC-API-automated-tests.yaml
+#   - ${{ if eq(variables['UIQCTest'], 'true') }}:
+#     - template: ../steps-of-cd/QC-UI-automated-tests.yaml
+
+# Running Performance Test
+# To Be Updated
+# - job: "Performance_Testing"
+#   displayName: "Performance Test"
+#   condition: eq(variables.RunPerfTest, 'true')
+#   pool:
+#     name: PerformanceTestAgents
+#   dependsOn: "deployment_status"
+#   continueOnError: true
+#   steps:
+#     - template: ../steps-of-cd/Performance-testing.yaml # to be moved
+# The test env is Done

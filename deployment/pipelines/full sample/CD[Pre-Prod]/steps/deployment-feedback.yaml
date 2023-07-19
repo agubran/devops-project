@@ -1,0 +1,160 @@
+parameters:
+  - name: kubernetesServiceEndpoint # kubernetes Service Endpoint
+    type: string
+  - name: currentEnv
+    type: string 
+
+steps:
+- checkout: Config #name of the config repo
+  persistCredentials: true
+- script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+  displayName: Configure Git
+  env:
+    PR_USER_NAME: "CI/CD"
+    PR_USER_EMAIL: "CICD@example.com"
+    workingDirectory: $(MANIFEST_DIR)
+
+- script: |
+      git checkout ${{ parameters.currentEnv }}
+      git pull
+  workingDirectory: $(MANIFEST_DIR)
+  displayName: Checkout to Preprod
+
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      #git checkout ${{ parameters.currentEnv }}
+      #git pull
+      if ls | grep test1.txt; then rm test1.txt; fi
+      if ls | grep test2.txt; then rm test2.txt; fi
+      cd $(MANIFEST_DIR)
+      pwd
+      echo "Removing the previous files"
+      if ls | grep test1.txt; then rm test1.txt; fi
+      if ls | grep test2.txt; then rm test2.txt; fi
+      deploy=$(kubectl get deploy -o name -n $(NAMESPACE) | sed 's/deployment.apps\///g')
+      #echo $deploy;
+      for i in $deploy; do echo $i >> test1.txt &&\
+        kubectl get deploy $i -o yaml -n $(NAMESPACE) | grep 'image:' >> test1.txt &&\
+          sed -i 's/f:image:\ {}//g' test1.txt &&\
+            sed -i 's/:/\ /g' test1.txt &&\
+              sed -i 's/-\ image://g' test1.txt &&\
+                sed -i 's/image://g' test1.txt &&\
+                  sed -i 's/^ *//g' test1.txt; done
+      cat test1.txt | sed 's/^ *//g' test1.txt > test2.txt
+      echo "test two is---------------------------------"
+      sed -i 's/-\ image//g' test2.txt
+      sed -i 's/image//g' test2.txt
+      sed -i '/^$/d' test2.txt
+      cat test2.txt | sed 's/^ *//g' > testx.txt
+      rm test1.txt
+      rm test2.txt
+  displayName: 'Get Image Tag' 
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      if ls | grep test3.txt; then rm test3.txt; fi
+      cd $(MANIFEST_DIR)
+      if ls | grep test3.txt; then rm test3.txt; fi
+      while read -r ONE || [ -n "$ONE" ] ; do
+          read -r TWO
+          echo $TWO | sed 's/ /\n/g' >> test3.txt 
+      done < testx.txt
+      cat test3.txt
+      rm testx.txt
+  displayName: Preparing
+ 
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      ls
+      if ls | grep test4.txt; then rm test4.txt; fi
+      cd $(MANIFEST_DIR)
+      if ls | grep test4.txt; then rm test4.txt; fi
+      while read -r ONE || [ -n "$ONE" ] ; do
+          read -r TWO
+          echo -e "repository: $ONE\ntag: \"$TWO\"" >> test4.txt 
+      done < test3.txt
+      #cat test4.txt
+      rm test3.txt
+  displayName: Image Tag Con
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      if ls | grep final.txt; then rm final.txt; fi
+      cd $(MANIFEST_DIR)
+      if ls | grep final.txt; then rm final.txt; fi
+      #echo '' > final.txt
+      while read -r ONE || [ -n "$ONE" ] ; do
+          read -r TWO 
+          if [[ $ONE != *"nginx"* ]]; then
+            echo $ONE >> final.txt
+            echo $TWO >> final.txt
+          fi
+      done < test4.txt 
+      if ls | grep test1.txt; then rm test1.txt; fi
+      while read -r ONE || [ -n "$ONE" ] ; do
+          read -r TWO
+          #file=$(find . -iname "values.yaml"  )
+          file=$(grep -H -wFr "$ONE" --exclude=\*.txt --exclude-dir="\.git" . |  cut -d: -f1)
+          echo "searching for the tag of the image"
+          #echo $file
+          #grep -wFr "$TWO" $file || exit 1
+          #grep -wFr "$ONE" --include=values.yaml * | grep -wFr "$TWO" --include=values.yaml * || exit 1
+          if [[ "$(grep -wFr "$TWO" $file)" ]]
+          then
+            echo "##[section]Config Repo in the ${{ parameters.currentEnv }} env and the cluster are matched"
+            #echo "##vso[task.complete] Config Repo in the ${{ parameters.currentEnv }} env and the cluster are matched"
+          else
+            echo "##[error]Config Repo in the ${{ parameters.currentEnv }} env and the cluster are not matched"
+            exit 1
+          fi
+      done < final.txt 
+      rm final.txt 
+      rm test4.txt
+  displayName: Checking Imgae Tag
+  
+# To check the rollout status
+#- task: Bash@3
+#  inputs:
+#    targetType: 'inline'
+#    script: |
+#        kubectl get deploy --output name -n $(NAMESPACE) | \
+#          xargs -n1 -t \
+#            timeout 60s kubectl rollout status -n $(NAMESPACE) | grep "successfully rolled out" || exit 1
+#  displayName: Rollout Status
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      kubectl get deploy --output name -n $(NAMESPACE) > deployments.txt 
+      ls
+      cat deployments.txt
+      for i in `cat deployments.txt `; do \
+        if [[ "$(timeout 60s kubectl rollout status $i -n $(NAMESPACE) | \
+          grep "successfully rolled out")" ]]
+        then 
+          echo "$i successfully rolled out"
+        else 
+          echo "$i didn't successfully roll out"
+          exit 1  
+        fi; done
+  displayName: Rollout Status
+
+# -------------------

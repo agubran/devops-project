@@ -1,0 +1,61 @@
+parameters:
+  - name: DEPLOY_BRANCH_NAME
+    default: $(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)
+    type: string
+
+steps:
+- checkout: Config #name of the config repo
+  persistCredentials: true
+  clean: true
+- script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+  displayName: Configure Git
+  env:
+    PR_USER_NAME: "CI/CD"
+    PR_USER_EMAIL: "CICD@example.com"
+
+# Make sure you are on the Prepord branch
+- script: |
+      git checkout Production
+      git pull
+      git checkout Preprod
+      git pull
+  displayName: Checkout to Preprod
+
+# if you have keys to be replaced, uncomment this task
+#- task: qetza.replacetokens.replacetokens-task.replacetokens@3
+#  inputs:
+#    targetFiles: '$(targetFiles)'
+#    encoding: 'auto'
+#    writeBOM: true
+#    actionOnMissing: 'warn'
+#    keepToken: false
+#    tokenPrefix: '#{'
+#    tokenSuffix: '}#'
+#    useLegacyPattern: false
+#    enableTransforms: false
+#    enableTelemetry: true
+
+# Pusing the updated version
+- script: |
+    echo "Create a new branch ${{ parameters.DEPLOY_BRANCH_NAME }}"   
+    git checkout -b ${{ parameters.DEPLOY_BRANCH_NAME }}
+    find ./ -type f -exec sed -i '/^avp:/s/Pre/prod/' {} \;
+    git add .
+    git commit -m "Updated Prod Values"
+    git merge Production -s ours
+    git push --set-upstream origin ${{ parameters.DEPLOY_BRANCH_NAME }}
+  displayName: 'Update Values-Prod'
+
+# Create a PR into Prod
+
+- bash: echo ${AZURE_DEVOPS_CLI_PAT} | az devops login
+  env:
+    AZURE_DEVOPS_CLI_PAT: $(System.AccessToken)
+  displayName: 'Login Azure DevOps Extension'
+
+- bash: az devops configure --defaults 'organization=$(System.TeamFoundationCollectionUri)' 'project=$(System.TeamProject)' --use-git-aliases true
+  displayName: 'Set default Azure DevOps organization and project'
+
+- bash: |
+   az repos pr create --project '$(System.TeamProject)' --repository $(Config_Repo) --target-branch $(TARGET_BRANCH) --source-branch ${{ parameters.DEPLOY_BRANCH_NAME }} --title "deployment ${{ parameters.DEPLOY_BRANCH_NAME }}" --bypass-policy false --squash --reviewers $(Reviewers)
+  displayName: 'Create a PR'

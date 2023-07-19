@@ -1,0 +1,33 @@
+parameters:
+  - name: ConnectionString
+    default: none
+    type: string
+
+  - name: dacpacName
+    default: none
+    type: string
+
+  - name: publishProfile
+    default: none
+    type: string
+
+steps:
+- task: DownloadBuildArtifacts@0
+  displayName: 'Download Build Artifacts'
+  inputs:
+    buildType: specific
+    project: '$(System.TeamProject)'
+    pipeline: '$(System.DefinitionId)'
+    buildVersionToDownload: specific
+    buildId: '$(Build.BuildId)'
+    downloadType: specific
+    itemPattern: |
+     ${{ parameters.dacpacName }}
+     ${{ parameters.publishProfile }}
+    downloadPath: '$(System.DefaultWorkingDirectory)'
+    extractTars: false
+
+- script: 'sqlpackage.exe /Action:Publish /SourceFile:"$(System.DefaultWorkingDirectory)\${{ parameters.dacpacName }}"    /TargetConnectionString:"${{ parameters.ConnectionString }}" /Profile:"$(System.DefaultWorkingDirectory)\${{ parameters.publishProfile }}'
+  displayName: 'difference script'
+
+

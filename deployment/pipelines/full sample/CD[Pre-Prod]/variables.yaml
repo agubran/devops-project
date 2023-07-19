@@ -1,0 +1,184 @@
+variables:
+  - name: Config_Repo # Config Repo Name
+    value: Config
+  - name: MANIFEST_DIR # The Path to the Service Manifest in the GitOps Repo
+    value: $(System.DefaultWorkingDirectory)/Config
+# --------Manifest Type-----------
+  - name: IsHelmChart
+    value: true
+  - name: IsPlainYaml
+    value: false
+# -------------------
+  - name: Reviewers # List of the Reviewers, you can add mmany reviewers, sperate them by space
+    value: a.soyiana@dev.thiqah.sa
+  - name: PROJECT_NAME # The Name of the Project 
+    value: $(System.TeamProject)
+# -----K8S Connection & Deployment FeedBack----------
+  - name: kubernetesServiceEndpointPreAPP # Pre K8S EndPoint APP
+    value: 'thiqah-pre-app'
+  - name: kubernetesServiceEndpointPreWEB # Pre K8S EndPoint Web
+    value: 'thiqah-pre-web'
+  - name: kubernetesServiceEndpointProdAPP # Prod K8S EndPoint APP
+    value: 'thiqah-prod-app'
+  - name: kubernetesServiceEndpointProdWEB # Prod K8S EndPoint Web
+    value: 'thiqah-prod-web'
+  - name: NAMESPACE # The Namespace Name of the Service to be Deployed in, used for deployment feed back, image lock, and set image
+    value: rega
+  - name: maintenancePageLabel # This will be used in the maintenance phase
+    value: app=nginx # make sure you follow the same format
+  - name: maintenancePageDeployName
+    value: nginx-deployment
+  - name: maintenancePagePort
+    value: 80 # make sure you follow the same format
+# ----- Global Variable Group Name & Keys -----
+  - name: GloVarsGroupName # Name of the Global Variable Group
+    value: rega-glob-group
+  #- name: serviceprincipalUsername
+  #  value: $(serviceprincipalUsername) # Key Name
+  #- name: serviceprincipalPassword
+  #  value: $(serviceprincipalPassword) # Key Name
+  #- name: acrTenant
+  #  value: $(acrTenant) # Key Name
+# ----- used clusters---------
+  - name: UseAppCluster
+    value: true
+  - name: UseWebCluster
+    value: true
+# ----- Argo Variable Group & Argocd Sync App---------
+  # creating new vairable group for argo service account for pre and prod with below keys
+  # 'UserName': argo service account username
+  # 'Password': argo service account password
+  - name: ArgoVarsGroupName
+    value: argocd-creds
+  - name: ArgocdAppAddrs
+    value: argo.thiqah.sa:443
+  - name: argocdAppName_PreApp
+    value: pre-app-cluster-rega
+  - name: argocdAppName_PreWeb
+    value: pre-web-cluster-rega
+  - name: argocdAppName_ProdApp
+    value: prod-app-cluster-rega
+  - name: argocdAppName_ProdWeb
+    value: prod-web-cluster-rega
+# ----- Database Script data---------
+  - name: maintenancePage
+    value: false
+  - name: databaseScript
+    value: true
+    #user-defined capability to select the appropriate agent from the pool, which its value is true
+  - name: DB_Agent_capabilityName
+    value: rega
+  - name: DB_Bulid_DefitionID
+    value: 
+  - name: DB_Bulid_buildID
+    value:
+  - name: DB_dacpacName
+    value: drop/Thiqah.rega.Database.dacpac
+  - name: DB_publishProfile
+    value: drop/Thiqah.rega.Database.publish.xml
+    # to recieve database comments if script refused by DBA
+  - name: DB_DeveloperEmail
+    value: melarousy@thiqah.sa
+  - name: PreProd_ServerName
+    value: Mazad-PP,55225
+  - name: PreProd_DBName
+    value: REG_PRE
+  - name: Production_ServerName
+    value: 
+  - name: Production_DBName
+    value: 
+# -------- Performance Test: JMeter -----------
+  - name: RunPerfTest # Do you need to run Performance test? 
+    value: false
+  - name: isPerfJMeterAutomated # Is JMeter for Performance Test Automated?
+    value: false
+  # two variable Groups
+  - name: PerfVarsGroupName
+    value: MigratorTest
+  - name: Perf2VarsGroupName
+    value: 'Performance Execution Variables'
+  - name: PathtoPublish
+    value: 
+  - name: Baseline-CU
+    value: 5
+  - name: Baseline-ramp-up
+    value: 5
+  - name: Baseline-hold-for
+    value: 5
+  - name: fileNamePathOfProject # junit-xml module
+    value: 
+  - name: ScenariosScriptPath
+    value: 
+  - name: jmeterHome
+    value: /home/qcadmin/apache-jmeter-5.3/bin/
+  - name: jmeterPath
+    value: /home/qcadmin/apache-jmeter-5.3/bin/jmeter.sh
+  - name: JMeterVersion
+    value: 5.3
+  - name: searchFolder
+    value: 
+  - name: artifactPath
+    value: taurus-output/
+# ------ QC Testing -----------
+  - name: RunQCTest # Do you need to run QC test ? 
+    value: false
+  - name: ApiQCTest # Api Test?
+    value: false
+  - name: UIQCTest # UI Test?
+    value: false 
+  - name: QCSecureFileName
+    value: 'rega'
+  - name: QCVarsGroupName # Variable Group
+    value: QC_Automation
+  - name: QCWorkingDir   # Working Dir for the UI
+    value: 'rega'
+  - name: VariableFronJsonFilePath
+    value: 
+  # ---- API QC -----
+  - name: ApiQCWorkingDir
+    value: $(System.DefaultWorkingDirectory)
+  - name: API_RP_UUID
+    value: $(RP_UUID)
+  - name: API_RP_LAUNCH
+    value: DevOps_eAuction_API(Test)
+  - name: API_RP_PROJECT
+    value: 'rega'
+  - name: ApiVariableFronJsonFilePath
+    value: $(System.DefaultWorkingDirectory)
+  # ---- UI QC -----
+  - name: UI_RP_UUID
+    value: $(RP_UUID)
+  - name: UI_RP_LAUNCH
+    value: 'rega'
+  - name: UI_RP_PROJECT
+    value: 
+  - name: QCSecureFile
+    value: 
+# ------ Pent Testing -----------
+  - name: RunPentTest # Do you need to run Pent test ? 
+    value: false
+  - name: isPenAutomated # Is Penetration Test Automated?
+    value: false
+  - name: PenscanWebSites
+    value: 4648ceac-4142-4975-0332-ad9b017f13db
+  - name: PenscanWebSitesProfile
+    value: d273ea11-8e17-4d72-768f-adb901f3a0f3
+# ----------QC Manual Validation ---------------
+  - name: QCNotifyUsers
+    value: a.moyayri@dev.thiqah.sa
+# ---------- BD Manual Validation ---------------
+## only this work with thiqah emails
+  - name: DBNotifyUsers
+    value: a.moyayri@dev.thiqah.sa
+# ---------- PR Manual Validation ---------------
+  - name: PRNotifyUsers
+    value: a.moyayri@dev.thiqah.sa  
+# ----------Penetration Manual Validation ---------------
+  - name: PentNotifyUsers
+    value: a.moyayri@dev.thiqah.sa 
+# ----------Performance Manual Validation ---------------
+  - name: PerfNotifyUsers
+    value: a.moyayri@dev.thiqah.sa
+# -------- RollBack Manual Validation ----------------
+  - name: RollbackNotifyUsers
+    value: a.moyayri@dev.thiqah.sa

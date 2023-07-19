@@ -1,0 +1,40 @@
+parameters:
+  - name: DBsolution
+    type: string
+  - name: BuildPlatform
+    type: string
+  - name: BuildConfiguration
+    type: string
+  - name: SourceFoldertoCopy
+    type: string
+  - name: msbuildArgs
+    type: string
+
+steps:
+- checkout: App_Repo
+  persistCredentials: true
+- task: VSBuild@1
+  displayName: 'Build Database Project'
+  inputs:
+    solution: ${{ parameters.DBsolution }}
+    msbuildArgs: '${{ parameters.msbuildArgs }}'
+    platform: '${{ parameters.BuildPlatform }}'
+    configuration: '${{ parameters.BuildConfiguration }}'
+#  workingDirectory: ${{ parameters.APP_REPO_DIR }}
+
+- task: CopyFiles@2
+  displayName: 'Copy DacPac File'
+  inputs:
+    SourceFolder: '${{ parameters.SourceFoldertoCopy }}'
+    TargetFolder: '$(build.artifactstagingdirectory)'
+#  workingDirectory: ${{ parameters.APP_REPO_DIR }}
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact'
+  inputs:
+    PathtoPublish: '$(build.artifactstagingdirectory)'
+#  workingDirectory: ${{ parameters.APP_REPO_DIR }}
+
+
+
+

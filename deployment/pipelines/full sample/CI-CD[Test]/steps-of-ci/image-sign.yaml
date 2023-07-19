@@ -1,0 +1,61 @@
+parameters:
+  - name: sourceLocation # source code directory path
+    type: string
+  - name: dockerFile # relative path to Dockerfile from sourceLocation
+    type: string
+  - name: acr # name of Azure Container Registry
+    type: string
+  - name: repository # name of container repository
+    type: string
+  - name: buildcontext
+    type: string
+  - name: tag
+    type: string 
+  - name: signingKeyFile
+    type: string
+  - name: keyVarName
+    type: string
+  - name: serviceprincipalUsername 
+    type: string
+  - name: serviceprincipalPassword
+    type: string
+
+
+steps:
+# Login using task to configure the config path automatically
+- task: Docker@2
+  inputs:
+    command: login
+    containerRegistry: ${{ parameters.acr }}
+  displayName: 'Docker Login'
+
+# Download the key as secure file
+
+- task: DownloadSecureFile@1
+  name: privateKey
+  inputs:
+    secureFile: ${{ parameters.signingKeyFile }}
+- script: |
+    mkdir -p $(DOCKER_CONFIG)/trust/private
+    cp $(privateKey.secureFilePath) $(DOCKER_CONFIG)/trust/private
+  displayName: 'Download private key'
+
+
+# Login, pull the image, sign, and push it to its origin repository
+- bash: |
+    az acr login -n tbsazdevacr.azurecr.io/${{ parameters.repository }} --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }}
+    docker pull tbsazdevacr.azurecr.io/scan/${{ parameters.repository }}:${{ parameters.tag }}
+    export DOCKER_CONTENT_TRUST=1
+    docker tag tbsazdevacr.azurecr.io/scan/${{ parameters.repository }}:${{ parameters.tag }} tbsazdevacr.azurecr.io/${{ parameters.repository }}:${{ parameters.tag }}
+    echo -e "${{ parameters.keyVarName }}" | docker trust sign tbsazdevacr.azurecr.io/${{ parameters.repository }}:${{ parameters.tag }} > output.txt
+    if [[ "$(grep 'Successfully signed' output.txt)" ]]
+    then
+      echo "##[section]Successfully signed tbsazdevacr.azurecr.io/${{ parameters.repository }}:${{ parameters.tag }}"
+    else
+      echo "##[error]Image needs to be signed"
+      exit 1
+    fi
+    # docker trust inspect --pretty tbsazdevacr.azurecr.io/${{ parameters.repository }}
+    echo -e "${{ parameters.keyVarName }}" | docker push tbsazdevacr.azurecr.io/${{ parameters.repository }}:${{ parameters.tag }}
+    az acr repository delete --username ${{ parameters.serviceprincipalUsername }} --password ${{ parameters.serviceprincipalPassword }} --name tbsazdevacr --image scan/${{ parameters.repository }}:${{ parameters.tag }} --yes
+  displayName: 'Sign, and push the image'

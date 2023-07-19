@@ -1,0 +1,64 @@
+parameters:
+  - name: DEPLOY_BRANCH_NAME
+    default: $(Build.Repository.Name)/$(Build.SourceBranchName)/$(Build.BuildNumber)-$(Build.BuildId)
+    type: string
+  - name: REPO_URL # GitOps Repo
+    type: string
+  - name: MANIFEST_DIR # The Path to the Service Manifest in the GitOps Repo
+    type: string
+  - name: SourceManifestPath # Path to the Service Manifest in the App Repo
+    type: string
+  - name: DestManifestPath
+    type: string
+  - name: PROGRAM_NAME
+    type: string
+  - name: PRODUCT_NAME
+    type: string
+  - name: REPO_NAME
+    type: string 
+  - name: ImageTagFile
+    type: string
+
+steps:
+- checkout: App_Repo
+- checkout: Config #name of the config repo
+  persistCredentials: true
+- script: git config --global user.email $PR_USER_EMAIL && git config --global user.name $PR_USER_NAME
+  displayName: Configure Git
+  env:
+    PR_USER_NAME: "CI/CD"
+    PR_USER_EMAIL: "CICD@example.com"
+  workingDirectory: ${{ parameters.MANIFEST_DIR }}
+
+# Important Note
+# Add all updated manaifest From Application Repo To GitOps Repo by using the "cp" command 
+# to the correct path in the GitOps repo, Example:
+# cp $(Build.SourcesDirectory)/$(APP_REPO_NAME)/HelmCharts/mazad/charts/mazad-captcha/templates/deployment.yaml $(Build.SourcesDirectory)/$(CONFG_REPO_NAME)/mazad/charts/mazad-captcha/templates/
+# ^ This will copy the updated version of the deployment to its correct path in the GitOps repo
+
+- script: |
+      git checkout Test
+      git pull
+      echo "Create a new branch ${{ parameters.DEPLOY_BRANCH_NAME }}"   
+      git checkout -b ${{ parameters.DEPLOY_BRANCH_NAME }}
+      # rm -r ${{ parameters.DestManifestPath }}/*
+      mkdir -p ${{ parameters.DestManifestPath }}
+      cp -R ${{ parameters.SourceManifestPath }}/* ${{ parameters.DestManifestPath }}/
+      # Here Add the "cp" command to the new manifests
+      if [[ "$(IsPlainYaml)" == "true" ]]
+      then
+        sed -i 's/image:.*/image:\ tbsazdevacr.azurecr.io\/${{ parameters.PROGRAM_NAME }}\/${{ parameters.PRODUCT_NAME }}\/${{ parameters.REPO_NAME }}:$(IMAGETAG)/g' ${{ parameters.ImageTagFile }}
+      fi 
+      #sed -i 's/image:.*/image:\ tbsazdevacr.azurecr.io\/${{ parameters.PROGRAM_NAME }}\/${{ parameters.PRODUCT_NAME }}\/${{ parameters.REPO_NAME }}:$(IMAGETAG)/g' ${{ parameters.ImageTagFile }}
+      sed -i 's/repository:.*/repository:\ tbsazdevacr.azurecr.io\/${{ parameters.PROGRAM_NAME }}\/${{ parameters.PRODUCT_NAME }}\/${{ parameters.REPO_NAME }}/g' ${{ parameters.ImageTagFile }}
+      sed -i 's/tag:.*/tag:\ "$(IMAGETAG)"/g' ${{ parameters.ImageTagFile }}
+      if [[ "$(Deploy_DB)" == "true" ]]
+      then
+        echo "$(System.DefinitionId)##$(Build.BuildId)" > DB.txt
+      fi 
+      # ^ Update the path to the values.yaml in case you are using helmcharts, otherwise to deployment.yaml 
+      git add .
+      git commit -m "deployment $(Build.BuildNumber)"
+      git push --set-upstream origin ${{ parameters.DEPLOY_BRANCH_NAME }}
+  displayName: Add Manifest to New Branch
+  workingDirectory: ${{ parameters.MANIFEST_DIR }}

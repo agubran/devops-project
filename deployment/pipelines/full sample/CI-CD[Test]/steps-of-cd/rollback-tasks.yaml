@@ -1,0 +1,7 @@
+steps:
+- task: Bash@3
+  displayName: "RollBack"
+  inputs:
+    targetType: 'inline'
+    script: |          
+      echo 'rollback tasks to be added'

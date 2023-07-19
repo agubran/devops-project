@@ -1,0 +1,43 @@
+parameters:
+  - name: ArgocdAppAddrs # Argocd Address
+    type: string
+  - name: argocdUserName # Argocd UserName
+    type: string
+  - name: argocdPassword # Argocd Password
+    type: string
+  - name: ArgocdAppName # Argocd Apps, sperate them with coma and space (e.g., app1, app2)
+    type: string
+  - name: kubernetesServiceEndpoint # kubernetes Service Endpoint
+    type: string
+
+steps:
+# Login into k8s to be able to use "kubectl" command
+- task: Kubernetes@1
+  inputs:
+    connectionType: 'Kubernetes Service Connection'
+    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceEndpoint }}
+    command: 'login'
+  displayName: Login to K8S
+
+- bash: |
+   svc=$(kubectl get svc -o name -n $(NAMESPACE) | sed 's/service\///g')
+  displayName: 'Get the services'
+
+- bash: |
+   echo "Argocd Login"
+   echo -e "y" | argocd login ${{ parameters.ArgocdAppAddrs }} --username ${{ parameters.argocdUserName }} --password ${{ parameters.argocdPassword }} --grpc-web
+  displayName: 'Argocd Login'
+
+- bash: |
+   echo "remove maintenance page selector"
+   svc=$(kubectl get svc -o name -n $(NAMESPACE) | sed 's/service\///g')
+   for i in $svc; do kubectl set selector service $i -n $(NAMESPACE) '' | grep "service/$i selector updated" || exit 1 &&\
+     argocd app sync ${{ parameters.ArgocdAppName }} --resource :Service:$i; done
+   echo "Apps Sync"
+   argocd app sync ${{ parameters.ArgocdAppName }}
+  displayName: 'Argocd Service Sync'
+
+- bash: |
+   echo "Apps Sync"
+   argocd app sync ${{ parameters.ArgocdAppName }}
+  displayName: 'Argocd Sync'

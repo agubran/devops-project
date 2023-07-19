@@ -1,0 +1,20 @@
+
+parameters:
+- name: scanWebSites
+  type: string 
+- name: scanWebSitesProfile
+  type: string 
+ 
+steps:
+- task: InvictiLtd.acunetix360-extension.acunetix360-task.acunetix360@1
+  displayName: 'Acunetix 360'
+  inputs:
+    apiConnection: 'Acunetix360 API Connector'
+    scanTypes: 2
+    scanWebSites: '${{ parameters.scanWebSites }}'
+    scanWebSitesProfile: '${{ parameters.scanWebSitesProfile }}'
+    hasReport: true
+    reportType: ScanDetail
+    onlyConfirmedIssues: false
+    onlyUnconfirmedIssues: true
+    excludeAddressedIssues: true
