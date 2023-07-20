@@ -34,7 +34,3 @@ steps:
   inputs:
     PathtoPublish: '$(build.artifactstagingdirectory)'
 #  workingDirectory: ${{ parameters.APP_REPO_DIR }}
-
-
-
-

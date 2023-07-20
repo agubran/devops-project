@@ -17,14 +17,10 @@ parameters:
     type: string
   - name: APP_REPO_DIR
     type: string
+    
 steps:
   - checkout: App_Repo
     persistCredentials: true
-  # To build using token, uncomment the upcoming task
-  #- bash: |
-  #     docker login --username ${{ parameters.tokename }} --password ${{ parameters.tokenPassword }} tbsazdevacr.azurecr.io
-  #    docker build -f ${{ parameters.sourceLocation }}/${{ parameters.dockerFile }} -t tbsazdevacr.azurecr.io/${{ parameters.repository }}:$(Build.BuildNumber) ${{ parameters.buildcontext }} --build-arg PAT=$(pat)
-  #displayName: "Building the image"
 
   - bash: |
       docker login --username ${{ parameters.tokename }} --password ${{ parameters.tokenPassword }} tbsazdevacr.azurecr.io
@@ -43,13 +39,6 @@ steps:
   #    tags: |
   #      $(Build.BuildNumber)
 
-  # To push using token, uncomment the upcoming task
-  # note that image acr repo should be created first or add permission for the service account to create it.
-  - bash: |
-      docker login --username ${{ parameters.tokename }} --password ${{ parameters.tokenPassword }} tbsazdevacr.azurecr.io
-      docker push tbsazdevacr.azurecr.io/${{ parameters.repository }}:$(Build.BuildNumber)
-    displayName: "Pushing the image to ACR"
-
   # Pushing using service principle
   #  displayName: "Pushing the imag to ACR"
   #- task: Docker@2
@@ -60,6 +49,14 @@ steps:
   #    command: 'push'
   #    tags: |
   #      $(Build.BuildNumber)
+
+
+  # To push using token, uncomment the upcoming task
+  # note that image acr repo should be created first or add permission for the service account to create it.
+  - bash: |
+      docker login --username ${{ parameters.tokename }} --password ${{ parameters.tokenPassword }} tbsazdevacr.azurecr.io
+      docker push tbsazdevacr.azurecr.io/${{ parameters.repository }}:$(Build.BuildNumber)
+    displayName: "Pushing the image to ACR"
 
   - task: Bash@3
     displayName: "Printing image tag"

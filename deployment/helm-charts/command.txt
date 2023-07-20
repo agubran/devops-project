@@ -48,7 +48,7 @@ k8s :
 	  kubectl delete -f deployment/k8s
 
 AKS :
-  
+
 HelmChart :
     Command : 
 	  helm --help 
@@ -81,9 +81,8 @@ HelmFile:
 
 
 AzDevOps Pipeline:
-  API :
-    
-  Client :
+    api :
+    client :
     
 Argo :
 
